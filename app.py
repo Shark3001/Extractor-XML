@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 # Seguridad desde variables de entorno
 app.secret_key = os.getenv("SECRET_KEY_APP_XML", "CAMBIA_ESTA_CLAVE_EN_RENDER")
-CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")
+CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")  # Define APP_PASSWORD en Render
 
 def formatear_numero(valor):
     if valor is None:
@@ -28,7 +28,7 @@ def formatear_fecha(fecha_str):
 def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     wb = openpyxl.Workbook()
 
-    # --- HOJA facturas_detalladas (sin tocar colores ni formato) ---
+    # --- HOJA facturas_detalladas ---
     ws_detalladas = wb.active
     ws_detalladas.title = "facturas_detalladas"
     headers_detalladas = [
@@ -43,7 +43,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     # --- HOJA facturas_resumidas ---
     ws_resumidas = wb.create_sheet(title="facturas_resumidas")
     headers_resumidas = [
-        "Clave","Consecutivo","Fecha","Nombre Emisor","Número Emisor","Nombre Receptor",
+        "Clave","Consecutivo","Fecha","Nombre Emisor","Número Emisor","Número Receptor",
         "Total Venta","Total Descuentos","Total Venta Neta","Monto Impuesto","Total Exento","Detalle","Archivo","Tipo de Documento"
     ]
     ws_resumidas.append(headers_resumidas)
@@ -95,7 +95,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                         codigo_moneda = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
                         tipo_cambio = formatear_numero(root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text) if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
                         total_gravado = formatear_numero(root.find('ResumenFactura/TotalGravado').text) if root.find('ResumenFactura/TotalGravado') is not None else ""
-                        total_exonerado = formatear_numero(root.find('ResumenFactura/TotalExonerado').text) if root.find('ResumenFactura/TotalExonerado') is not None else ""
+                        total_exonerado = formatear_numero(resumen_factura.find('TotalExonerado').text) if resumen_factura is not None and resumen_factura.find('TotalExonerado') is not None else ""
                         total_comprobante = formatear_numero(resumen_factura.find('TotalComprobante').text) if resumen_factura is not None and resumen_factura.find('TotalComprobante') is not None else ""
                         otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
 
@@ -119,34 +119,24 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         except Exception as e:
             flash(f"Error al procesar '{filename}': {e}", 'error')
 
-    # --- Formato numérico ---
-    columnas_numericas_det = [10,11,12,13,14,15,16,17,19,20,21,22,23,24,25,26,27,28]
-    for fila in ws_detalladas.iter_rows(min_row=2):
-        for idx_col in columnas_numericas_det:
-            celda = fila[idx_col-1]
-            try:
-                if isinstance(celda.value, str):
-                    celda.value = float(celda.value.replace(",", "."))
-                celda.number_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
-            except:
-                pass
-
-    columnas_numericas_res = [7,8,9,10,11]
-    for fila in ws_resumidas.iter_rows(min_row=2):
-        for idx_col in columnas_numericas_res:
-            celda = fila[idx_col-1]
-            try:
-                if isinstance(celda.value, str):
-                    celda.value = float(celda.value.replace(",", "."))
-                celda.number_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
-            except:
-                pass
-
-    # --- Colores facturas_resumidas ---
+    # --- Formato colores facturas_detalladas ---
     fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
     fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
-    columnas_azul = [2,3,12,10,11,9,8,9]  # Ajustado a las columnas de ws_resumidas
-    for col_idx in columnas_azul:
+
+    # Columnas azules: Consecutivo, Fecha, Detalle, Monto Impuesto, Total Exento, Total Descuentos, Total Venta Neta, Archivo
+    col_azul = ["B","C","I","P","V","X","Y","AC"]
+    for col in col_azul:
+        for cell in ws_detalladas[col]:
+            cell.fill = fill_celeste
+
+    # Columna Número Receptor en rojo si no coincide
+    for cell in ws_detalladas["G"][1:]:
+        if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
+            cell.fill = fill_rojo
+
+    # --- Formato colores facturas_resumidas ---
+    col_azul_res = [2,3,12,10,11,8,9,13]  # Consecutivo, Fecha, Detalle, Monto Impuesto, Total Exento, Total Descuentos, Total Venta Neta, Archivo
+    for col_idx in col_azul_res:
         for cell in list(ws_resumidas.columns)[col_idx-1]:
             cell.fill = fill_celeste
 
@@ -161,16 +151,17 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     return out
 
 # --------- Rutas ---------
-@app.route('/login', methods=['GET','POST'])
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method=='POST':
+    if request.method == 'POST':
         password = request.form.get('password')
-        if password==CORRECT_PASSWORD:
-            session['logged_in']=True
-            flash('Inicio de sesión exitoso.','success')
+        if password == CORRECT_PASSWORD:
+            session['logged_in'] = True
+            flash('Inicio de sesión exitoso.', 'success')
             return redirect(url_for('index'))
         else:
-            flash('Contraseña incorrecta. Inténtalo de nuevo.','error')
+            flash('Contraseña incorrecta. Inténtalo de nuevo.', 'error')
             return redirect(url_for('login'))
     return render_template('login.html')
 
@@ -182,28 +173,28 @@ def index():
 
 @app.route('/logout')
 def logout():
-    session.pop('logged_in',None)
-    flash('Has cerrado sesión correctamente.','success')
+    session.pop('logged_in', None)
+    flash('Has cerrado sesión correctamente.', 'success')
     return redirect(url_for('login'))
 
-@app.route('/upload',methods=['POST'])
+@app.route('/upload', methods=['POST'])
 def upload_files():
     if not session.get('logged_in'):
-        flash('Por favor, inicia sesión para acceder a esta función.','error')
+        flash('Por favor, inicia sesión para acceder a esta función.', 'error')
         return redirect(url_for('login'))
 
     if 'xml_files' not in request.files:
-        flash('No se subieron archivos.','error')
+        flash('No se subieron archivos.', 'error')
         return redirect(url_for('index'))
 
     files = request.files.getlist('xml_files')
-    if not files or files[0].filename=='':
-        flash('No se seleccionó ningún archivo.','error')
+    if not files or files[0].filename == '':
+        flash('No se seleccionó ningún archivo.', 'error')
         return redirect(url_for('index'))
 
     numero_receptor = request.form.get('numero_receptor')
     if not numero_receptor:
-        flash('El número de identificación del receptor es obligatorio.','error')
+        flash('El número de identificación del receptor es obligatorio.', 'error')
         return redirect(url_for('index'))
 
     excel_stream = extraer_datos_xml_en_memoria(files, numero_receptor)
@@ -214,6 +205,6 @@ def upload_files():
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
-if __name__=='__main__':
+if __name__ == '__main__':
     app.run(debug=False)
 

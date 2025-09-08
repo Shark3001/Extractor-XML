@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Extractor de XML a Excel</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
@@ -32,7 +33,7 @@
             font-weight: 700;
             color: #f97316;
             margin-bottom: 1rem;
-            text-decoration: underline; /* Agregado para subrayar el logo */
+            text-decoration: underline;
         }
         .title {
             font-size: 1.5rem;
@@ -72,8 +73,12 @@
             border: none;
             width: 100%;
         }
-        .btn:hover {
+        .btn:hover:not(:disabled) {
             background-color: #1d4ed8;
+        }
+        .btn:disabled {
+            background-color: #93c5fd;
+            cursor: not-allowed;
         }
         .alert {
             padding: 1rem;
@@ -122,7 +127,6 @@
         .file-input input {
             display: none;
         }
-        /* Estilos para el estado de arrastrar sobre el área */
         .file-input.drag-over {
             border-color: #2563eb;
             background-color: #eef2ff;
@@ -149,36 +153,11 @@
         <div class="logo">afc</div>
         <h1 class="title">Extractor de XML a Excel</h1>
 
-        <!-- Mensajes flash de Flask -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="messages">
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">
-                {{ message }}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
+        <!-- Contenedor para mensajes -->
+        <div id="message-container"></div>
 
-        <!-- Condición para mostrar el formulario de inicio de sesión o la aplicación -->
-        {% if not session.logged_in %}
-        <!-- Formulario de inicio de sesión -->
-        <form action="{{ url_for('login') }}" method="post">
-            <div class="input-group">
-                <label for="username" class="input-label">Usuario:</label>
-                <input type="text" id="username" name="username" class="input-field" required>
-            </div>
-            <div class="input-group">
-                <label for="password" class="input-label">Contraseña:</label>
-                <input type="password" id="password" name="password" class="input-field" required>
-            </div>
-            <button type="submit" class="btn">Iniciar Sesión</button>
-        </form>
-        {% else %}
-        <!-- Contenido de la aplicación -->
-        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+        <!-- Formulario de carga de archivos -->
+        <form id="upload-form">
             <div class="input-group">
                 <label for="idReceptor" class="input-label">Número de Identificación del Receptor (sin guiones):</label>
                 <input type="text" id="idReceptor" name="idReceptor" class="input-field" placeholder="Ej: 3101123456" required>
@@ -192,31 +171,35 @@
                 </div>
                 <ul class="file-list" id="file-list"></ul>
             </div>
-            <button type="submit" class="btn">Generar Excel</button>
+            <button type="submit" class="btn" id="generate-btn">Generar Excel</button>
         </form>
-        <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
-        {% endif %}
+
+        <a href="login.html" class="logout-btn" id="logout-link">Cerrar Sesión</a>
 
         <!-- Línea del desarrollador -->
         <p class="text-sm text-gray-500 mt-4">Desarrollado por <a href="mailto:jordyam30@gmail.com?subject=Consulta%20sobre%20el%20Extractor%20de%20XML%20a%20Excel" class="text-blue-600 hover:text-blue-800 hover:underline">Jordy Arias</a></p>
     </div>
 
     <script>
-        // Este script solo se ejecuta en la página principal, no en el login
-        const dropArea = document.getElementById('drop-area');
-        const fileElem = document.getElementById('fileElem');
-        const fileList = document.getElementById('file-list');
-        
-        if (dropArea && fileElem) {
+        document.addEventListener('DOMContentLoaded', () => {
+            // Lógica para verificar la autenticación
+            if (localStorage.getItem('isLoggedIn') !== 'true') {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            const dropArea = document.getElementById('drop-area');
+            const fileElem = document.getElementById('fileElem');
+            const fileList = document.getElementById('file-list');
+            const form = document.getElementById('upload-form');
+            const generateBtn = document.getElementById('generate-btn');
+            const idReceptorInput = document.getElementById('idReceptor');
+            const messageContainer = document.getElementById('message-container');
+
+            // --- Lógica de la interfaz de usuario (Drag & Drop) ---
             ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                 dropArea.addEventListener(eventName, preventDefaults, false);
-                document.body.addEventListener(eventName, preventDefaults, false);
             });
-
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
 
             ;['dragenter', 'dragover'].forEach(eventName => {
                 dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
@@ -228,6 +211,12 @@
 
             dropArea.addEventListener('drop', handleDrop, false);
             dropArea.addEventListener('click', () => fileElem.click(), false);
+            fileElem.addEventListener('change', (e) => handleFiles(e.target.files), false);
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
 
             function handleDrop(e) {
                 const dt = e.dataTransfer;
@@ -235,33 +224,148 @@
                 handleFiles(files);
             }
 
-            fileElem.addEventListener('change', (e) => handleFiles(e.target.files), false);
-
             function handleFiles(files) {
                 fileList.innerHTML = '';
-                
                 const newFileList = new DataTransfer();
-                
+                let hasInvalidFile = false;
+
                 [...files].forEach(file => {
-                    if (file.type === "text/xml") {
+                    // Validar si es un archivo XML
+                    if (file.name.endsWith('.xml') || file.type === "text/xml") {
                         const listItem = document.createElement('li');
                         listItem.textContent = file.name;
                         fileList.appendChild(listItem);
                         newFileList.items.add(file);
                     } else {
-                        // Reemplazar alert() con un mensaje en la interfaz de usuario
-                        const container = document.querySelector('.container');
-                        const alertDiv = document.createElement('div');
-                        alertDiv.className = 'alert alert-danger';
-                        alertDiv.textContent = 'Solo se aceptan archivos de tipo XML.';
-                        container.prepend(alertDiv);
-                        setTimeout(() => alertDiv.remove(), 5000); // Elimina el mensaje después de 5 segundos
+                        hasInvalidFile = true;
                     }
                 });
 
                 fileElem.files = newFileList.files;
+                if (hasInvalidFile) {
+                    showMessage('Solo se aceptan archivos de tipo XML. Se han ignorado otros archivos.', 'warning');
+                }
             }
-        }
+            
+            // --- Lógica de procesamiento de datos ---
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const idReceptor = idReceptorInput.value.trim();
+                const files = fileElem.files;
+                
+                if (files.length === 0) {
+                    showMessage('Por favor, selecciona al menos un archivo XML.', 'danger');
+                    return;
+                }
+                
+                if (!idReceptor) {
+                    showMessage('Por favor, ingresa el número de identificación del receptor.', 'danger');
+                    return;
+                }
+
+                generateBtn.disabled = true;
+                generateBtn.textContent = 'Procesando...';
+                showMessage('Procesando archivos...', 'success');
+
+                try {
+                    const workbook = XLSX.utils.book_new();
+                    let allData = [];
+
+                    for (const file of files) {
+                        const fileContent = await readFileAsText(file);
+                        const data = extractDataFromXML(fileContent, idReceptor);
+                        if (data) {
+                            allData = allData.concat(data);
+                        }
+                    }
+
+                    if (allData.length > 0) {
+                        const worksheet = XLSX.utils.json_to_sheet(allData);
+                        XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas");
+                        XLSX.writeFile(workbook, `Facturas_Receptor_${idReceptor}.xlsx`);
+                        showMessage('Excel generado y descargado exitosamente.', 'success');
+                    } else {
+                        showMessage('No se encontraron datos para los archivos y receptor proporcionados.', 'danger');
+                    }
+                } catch (error) {
+                    console.error("Error al procesar los archivos:", error);
+                    showMessage(`Ocurrió un error: ${error.message}`, 'danger');
+                } finally {
+                    generateBtn.disabled = false;
+                    generateBtn.textContent = 'Generar Excel';
+                }
+            });
+
+            function readFileAsText(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsText(file);
+                });
+            }
+
+            function extractDataFromXML(xmlString, idReceptor) {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+                
+                const data = [];
+                const facturas = xmlDoc.querySelectorAll("FacturaElectronica");
+
+                if (facturas.length === 0) {
+                    // Manejar caso donde no hay facturas
+                    return data;
+                }
+
+                facturas.forEach(factura => {
+                    const receptor = factura.querySelector("Receptor");
+                    const idReceptorXML = receptor ? receptor.querySelector("Identificacion").textContent : null;
+
+                    if (idReceptorXML === idReceptor) {
+                        const emisor = factura.querySelector("Emisor");
+                        const detalleServicio = factura.querySelectorAll("DetalleServicio > LineaDetalle");
+                        
+                        detalleServicio.forEach(linea => {
+                            const cantidad = linea.querySelector("Cantidad").textContent;
+                            const unidadMedida = linea.querySelector("UnidadMedida").textContent;
+                            const detalle = linea.querySelector("Detalle").textContent;
+                            const precioUnitario = linea.querySelector("PrecioUnitario").textContent;
+                            const montoTotal = linea.querySelector("MontoTotal").textContent;
+                            const numeroFactura = factura.querySelector("Clave").textContent;
+                            const fechaFactura = factura.querySelector("FechaEmision").textContent;
+
+                            data.push({
+                                "Fecha": fechaFactura,
+                                "Número Factura": numeroFactura,
+                                "Cantidad": cantidad,
+                                "Unidad de Medida": unidadMedida,
+                                "Detalle": detalle,
+                                "Precio Unitario": precioUnitario,
+                                "Monto Total": montoTotal,
+                                "Emisor": emisor.querySelector("Nombre").textContent,
+                                "ID Emisor": emisor.querySelector("Identificacion > Numero").textContent,
+                                "Receptor": receptor.querySelector("Nombre").textContent,
+                                "ID Receptor": idReceptor
+                            });
+                        });
+                    }
+                });
+                
+                return data;
+            }
+
+            function showMessage(message, type) {
+                messageContainer.innerHTML = '';
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.textContent = message;
+                messageContainer.appendChild(alertDiv);
+            }
+
+            document.getElementById('logout-link').addEventListener('click', () => {
+                localStorage.removeItem('isLoggedIn');
+            });
+        });
     </script>
 </body>
 </html>

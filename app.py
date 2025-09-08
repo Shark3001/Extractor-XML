@@ -41,10 +41,10 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ws = wb.active
     # Define los encabezados de las columnas del Excel
     headers = ["Clave", "Consecutivo", "Fecha", "Nombre Emisor", "Número Emisor", "Nombre Receptor", "Número Receptor",
-                         "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
-                         "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
-                         "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
-                         "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
+                          "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
+                          "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
+                          "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
+                          "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
     ws.append(headers)
 
     # Itera sobre cada archivo XML recibido
@@ -207,8 +207,8 @@ def index():
 def login():
     if request.method == "POST":
         password = request.form.get("password")
-        # TODO: Reemplaza esta lógica de autenticación por la tuya
-        if password == "password": # Contraseña de prueba
+        # Aquí se corrige la contraseña para que sea la clave correcta
+        if password == "AFC2024*":
             session["logged_in"] = True
             flash("Inicio de sesión exitoso.", "success")
             return redirect(url_for("index"))

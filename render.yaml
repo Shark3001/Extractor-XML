@@ -3,9 +3,9 @@ services:
 type: web
 name: extractor-xml
 env: python
-buildCommand: "pip install -r requirements.txt && pip install gunicorn"
+buildCommand: "pip install -r requirements.txt"
 startCommand: "gunicorn --bind 0.0.0.0:$PORT app:app"
 envVars:
 
 key: SECRET_KEY_APP_XML
-value: "sdflkjsdflkjsdfoijsdlfkjsdf839845asdfkj"
+value: "suFfkjsdfflkjsdflkjsdflkjsdfkj984saadfkj"

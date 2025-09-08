@@ -2,19 +2,15 @@ import os
 from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session
 import xml.etree.ElementTree as ET
 import openpyxl
-from openpyxl.styles import numbers, PatternFill, Color
+from openpyxl.styles import numbers, PatternFill
 from datetime import datetime
 import io
+import uuid
 
 # Inicializa la aplicación Flask
 app = Flask(__name__)
-# Configura la clave secreta para las sesiones. 
-# Es MUY importante que sea una cadena larga y aleatoria.
-# Usamos una variable de entorno en producción por seguridad.
-app.secret_key = os.getenv('SECRET_KEY', 'una_clave_secreta_por_defecto_si_no_esta_en_produccion')
-
-# Contraseña fija para el acceso
-PASSWORD = "AFC2024*"
+# Usamos una clave secreta segura y generada dinámicamente
+app.secret_key = os.environ.get("SECRET_KEY_APP_XML", str(uuid.uuid4()))
 
 # --- Funciones de formateo de datos ---
 def formatear_numero(valor):
@@ -32,7 +28,7 @@ def formatear_fecha(fecha_str):
             fecha_obj = datetime.fromisoformat(fecha_str.replace('Z', '+00:00'))
             return fecha_obj.strftime('%d-%m-%Y')
         except ValueError:
-            return fecha_str # Devuelve la cadena original si no se puede formatear
+            return fecha_str  # Devuelve la cadena original si no se puede formatear
     return ""
 
 # --- Lógica principal para extraer datos XML y generar el Excel ---
@@ -45,10 +41,10 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ws = wb.active
     # Define los encabezados de las columnas del Excel
     headers = ["Clave", "Consecutivo", "Fecha", "Nombre Emisor", "Número Emisor", "Nombre Receptor", "Número Receptor",
-               "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
-               "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
-               "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
-               "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
+                         "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
+                         "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
+                         "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
+                         "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
     ws.append(headers)
 
     # Itera sobre cada archivo XML recibido
@@ -166,7 +162,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     fill = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid") # Color azul claro
     for col_idx in columnas_a_resaltar:
         if 0 < col_idx <= ws.max_column: # Asegura que el índice de la columna sea válido
-            # Accede a la columna completa y aplica el relleno a cada celda
+            # Accede a la columna completa y aplica el relleno al encabezado y las celdas
             columna = list(ws.columns)[col_idx - 1]
             for cell in columna:
                 cell.fill = fill
@@ -194,7 +190,6 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         ws.delete_rows(row_idx)
 
     # Guarda el libro de Excel en un objeto BytesIO (buffer en memoria)
-    # Esto es crucial para enviar el archivo directamente al navegador sin guardarlo en disco.
     excel_stream = io.BytesIO()
     wb.save(excel_stream)
     excel_stream.seek(0) # Mueve el puntero al inicio del stream para que se pueda leer desde el principio
@@ -202,59 +197,49 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     return excel_stream
 
 # --- Rutas de la aplicación web Flask ---
+@app.route("/")
+def index():
+    if "logged_in" not in session:
+        return redirect(url_for("login"))
+    return render_template("index.html")
 
-@app.route('/')
-def login_page():
-    """Ruta para la página de login."""
-    return render_template('login.html')
-
-@app.route('/login', methods=['POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    """Ruta para procesar el formulario de login."""
-    password = request.form.get('password')
-    if password == PASSWORD:
-        session['logged_in'] = True
-        flash('Inicio de sesión exitoso.', 'success')
-        return redirect(url_for('upload_form'))
-    else:
-        flash('Contraseña incorrecta. Por favor, inténtelo de nuevo.', 'error')
-        return redirect(url_for('login_page'))
-
-@app.route('/upload-form')
-def upload_form():
-    """Ruta para la página de carga de archivos (protegida)."""
-    if not session.get('logged_in'):
-        flash('Por favor, inicie sesión para acceder a esta página.', 'warning')
-        return redirect(url_for('login_page'))
-    
-    # Renderiza el archivo HTML que se encuentra en 'templates/index.html'
-    return render_template('index.html')
-
+    if request.method == "POST":
+        password = request.form.get("password")
+        # TODO: Reemplaza esta lógica de autenticación por la tuya
+        if password == "password": # Contraseña de prueba
+            session["logged_in"] = True
+            flash("Inicio de sesión exitoso.", "success")
+            return redirect(url_for("index"))
+        else:
+            flash("Contraseña incorrecta. Inténtalo de nuevo.", "danger")
+            return redirect(url_for("login"))
+    return render_template("login.html")
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
     """Ruta para manejar la carga de archivos XML y generar el Excel."""
-    # Verifica si el usuario ha iniciado sesión
-    if not session.get('logged_in'):
-        flash('Por favor, inicie sesión para subir archivos.', 'warning')
-        return redirect(url_for('login_page'))
-
+    if "logged_in" not in session:
+        flash("Necesitas iniciar sesión para acceder a esta función.", "warning")
+        return redirect(url_for("login"))
+        
     # Verifica si se enviaron archivos XML en la solicitud
-    if 'xml_files' not in request.files:
+    if 'files[]' not in request.files:
         flash('No se encontraron archivos XML. Por favor, selecciona al menos uno.')
-        return redirect(url_for('upload_form'))
+        return redirect(url_for('index'))
 
     # Obtiene la lista de archivos XML subidos
-    xml_files = request.files.getlist('xml_files')
+    xml_files = request.files.getlist('files[]')
     if not xml_files or all(f.filename == '' for f in xml_files):
         flash('No se seleccionó ningún archivo XML. Por favor, arrastra o selecciona archivos.')
-        return redirect(url_for('upload_form'))
+        return redirect(url_for('index'))
 
     # Obtiene el número de receptor ingresado por el usuario
-    numero_receptor_filtro = request.form.get('numero_receptor', '').strip()
+    numero_receptor_filtro = request.form.get('idReceptor', '').strip()
     if not numero_receptor_filtro:
         flash('Por favor, ingrese el número de identificación del receptor.')
-        return redirect(url_for('upload_form'))
+        return redirect(url_for('index'))
 
     try:
         # Llama a la función para extraer datos y generar el Excel en memoria
@@ -269,14 +254,19 @@ def upload_files():
     except Exception as e:
         # Manejo de errores durante el procesamiento
         flash(f'Ocurrió un error al procesar los archivos: {e}')
-        # Redirige de vuelta a la página de carga con el mensaje de error
-        return redirect(url_for('upload_form'))
+        # Redirige de vuelta a la página de inicio con el mensaje de error
+        return redirect(url_for('index'))
+
+@app.route("/logout")
+def logout():
+    session.pop("logged_in", None)
+    flash("Has cerrado sesión.", "info")
+    return redirect(url_for("login"))
 
 # Bloque principal para ejecutar la aplicación Flask
 if __name__ == '__main__':
     # Asegura que la carpeta 'templates' exista al iniciar la app
     if not os.path.exists('templates'):
         os.makedirs('templates')
-    # Inicia el servidor de desarrollo de Flask
-    # En producción, Gunicorn manejará esto.
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    app.run(debug=True, host='0.0.0.0', port=5000)
+

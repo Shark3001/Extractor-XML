@@ -8,7 +8,7 @@
         /* Estilos básicos para la página */
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
+            margin: 0;
             background-color: #f4f4f4;
             color: #333;
             display: flex;
@@ -18,12 +18,12 @@
         }
         .container {
             max-width: 800px;
-            width: 100%;
-            margin: 0 auto;
+            width: 90%; /* Ancho responsivo */
             background-color: #fff;
             padding: 30px;
             border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
         h1 {
             color: #0056b3;
@@ -73,8 +73,9 @@
             font-weight: bold;
         }
         input[type="text"] {
-            width: calc(100% - 22px); /* Ancho completo menos padding y borde */
+            width: 100%;
             padding: 10px;
+            box-sizing: border-box; /* Incluye padding y border en el ancho */
             margin-bottom: 20px;
             border: 1px solid #ccc;
             border-radius: 4px;
@@ -100,10 +101,17 @@
         .flash-messages {
             margin-bottom: 20px;
             padding: 10px;
-            background-color: #ffe0b2; /* Color de fondo para advertencia */
-            border: 1px solid #ffcc80;
-            color: #e65100; /* Color de texto para advertencia */
             border-radius: 5px;
+        }
+        .flash-messages.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .flash-messages.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
         }
         .flash-messages ul {
             list-style: none;
@@ -125,20 +133,33 @@
             margin: 0 auto 30px auto; /* Centrar horizontalmente y añadir margen inferior */
             width: fit-content; /* El ancho se ajusta al contenido del texto */
         }
+        .logout-link {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            color: #007bff;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .logout-link:hover {
+            text-decoration: underline;
+        }
+        
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="afc-logo">afc</div> 
+        <a href="{{ url_for('logout') }}" class="logout-link">Cerrar Sesión</a>
+        <div class="afc-logo">afc</div>
 
         <h1>Extractor de XML a Excel</h1>
 
         {# Sección para mostrar mensajes flash de Flask (ej. errores) #}
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-            <div class="flash-messages">
+            <div class="flash-messages {{ messages[0][0] }}">
                 <ul>
-                    {% for message in messages %}
+                    {% for category, message in messages %}
                         <li>{{ message }}</li>
                     {% endfor %}
                 </ul>

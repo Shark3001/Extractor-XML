@@ -39,6 +39,7 @@
             font-weight: 600;
             color: #1f2937;
             margin-bottom: 2rem;
+            text-decoration: underline;
         }
         .input-group {
             margin-bottom: 1.5rem;
@@ -74,25 +75,6 @@
         .btn:hover {
             background-color: #1d4ed8;
         }
-        .file-input {
-            border: 2px dashed #d1d5db;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            text-align: center;
-            transition: border-color 0.3s;
-        }
-        .file-input:hover {
-            border-color: #2563eb;
-        }
-        .file-input p {
-            font-size: 1rem;
-            color: #6b7280;
-            margin: 0;
-        }
-        .file-input input {
-            display: none;
-        }
         .alert {
             padding: 1rem;
             border-radius: 0.5rem;
@@ -121,6 +103,25 @@
         .logout-btn:hover {
             text-decoration: underline;
         }
+        .file-input {
+            border: 2px dashed #d1d5db;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            text-align: center;
+            transition: border-color 0.3s;
+        }
+        .file-input:hover {
+            border-color: #2563eb;
+        }
+        .file-input p {
+            font-size: 1rem;
+            color: #6b7280;
+            margin: 0;
+        }
+        .file-input input {
+            display: none;
+        }
         /* Estilos para el estado de arrastrar sobre el área */
         .file-input.drag-over {
             border-color: #2563eb;
@@ -144,10 +145,10 @@
 </head>
 <body>
     <div class="container">
-        <!-- Logo de la aplicación con subrayado -->
+        <!-- Logo y título de la aplicación -->
         <div class="logo">afc</div>
         <h1 class="title">Extractor de XML a Excel</h1>
-        
+
         <!-- Mensajes flash de Flask -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -161,7 +162,23 @@
         {% endif %}
         {% endwith %}
 
-        <form action="/upload" method="post" enctype="multipart/form-data">
+        <!-- Condición para mostrar el formulario de inicio de sesión o la aplicación -->
+        {% if not session.logged_in %}
+        <!-- Formulario de inicio de sesión -->
+        <form action="{{ url_for('login') }}" method="post">
+            <div class="input-group">
+                <label for="username" class="input-label">Usuario:</label>
+                <input type="text" id="username" name="username" class="input-field" required>
+            </div>
+            <div class="input-group">
+                <label for="password" class="input-label">Contraseña:</label>
+                <input type="password" id="password" name="password" class="input-field" required>
+            </div>
+            <button type="submit" class="btn">Iniciar Sesión</button>
+        </form>
+        {% else %}
+        <!-- Contenido de la aplicación -->
+        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
             <div class="input-group">
                 <label for="idReceptor" class="input-label">Número de Identificación del Receptor (sin guiones):</label>
                 <input type="text" id="idReceptor" name="idReceptor" class="input-field" placeholder="Ej: 3101123456" required>
@@ -177,72 +194,73 @@
             </div>
             <button type="submit" class="btn">Generar Excel</button>
         </form>
-
         <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
+        {% endif %}
 
-        <!-- Línea del desarrollador ahora con un enlace clicable -->
+        <!-- Línea del desarrollador -->
         <p class="text-sm text-gray-500 mt-4">Desarrollado por <a href="mailto:jordyam30@gmail.com?subject=Consulta%20sobre%20el%20Extractor%20de%20XML%20a%20Excel" class="text-blue-600 hover:text-blue-800 hover:underline">Jordy Arias</a></p>
     </div>
 
     <script>
+        // Este script solo se ejecuta en la página principal, no en el login
         const dropArea = document.getElementById('drop-area');
         const fileElem = document.getElementById('fileElem');
         const fileList = document.getElementById('file-list');
-        const form = document.querySelector('form');
-
-        // Previene el comportamiento por defecto de arrastrar y soltar
-        ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, preventDefaults, false);
-            document.body.addEventListener(eventName, preventDefaults, false);
-        });
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        // Resalta el área cuando se arrastran elementos sobre ella
-        ;['dragenter', 'dragover'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
-        });
-
-        ;['dragleave', 'drop'].forEach(eventName => {
-            dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
-        });
-
-        // Maneja los archivos soltados
-        dropArea.addEventListener('drop', handleDrop, false);
-        dropArea.addEventListener('click', () => fileElem.click(), false);
-
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles(files);
-        }
-
-        fileElem.addEventListener('change', (e) => handleFiles(e.target.files), false);
-
-        function handleFiles(files) {
-            // Limpia la lista de archivos anterior
-            fileList.innerHTML = '';
-            
-            // Crea un nuevo DataTransfer para el input de archivo
-            const newFileList = new DataTransfer();
-            
-            [...files].forEach(file => {
-                // Solo acepta archivos XML
-                if (file.type === "text/xml") {
-                    const listItem = document.createElement('li');
-                    listItem.textContent = file.name;
-                    fileList.appendChild(listItem);
-                    newFileList.items.add(file);
-                } else {
-                    alert('Solo se aceptan archivos de tipo XML.');
-                }
+        
+        if (dropArea && fileElem) {
+            ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+                document.body.addEventListener(eventName, preventDefaults, false);
             });
 
-            // Reemplaza los archivos en el input para que puedan ser enviados con el formulario
-            fileElem.files = newFileList.files;
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ;['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
+            });
+
+            ;['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
+            });
+
+            dropArea.addEventListener('drop', handleDrop, false);
+            dropArea.addEventListener('click', () => fileElem.click(), false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles(files);
+            }
+
+            fileElem.addEventListener('change', (e) => handleFiles(e.target.files), false);
+
+            function handleFiles(files) {
+                fileList.innerHTML = '';
+                
+                const newFileList = new DataTransfer();
+                
+                [...files].forEach(file => {
+                    if (file.type === "text/xml") {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = file.name;
+                        fileList.appendChild(listItem);
+                        newFileList.items.add(file);
+                    } else {
+                        // Reemplazar alert() con un mensaje en la interfaz de usuario
+                        const container = document.querySelector('.container');
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.textContent = 'Solo se aceptan archivos de tipo XML.';
+                        container.prepend(alertDiv);
+                        setTimeout(() => alertDiv.remove(), 5000); // Elimina el mensaje después de 5 segundos
+                    }
+                });
+
+                fileElem.files = newFileList.files;
+            }
         }
     </script>
 </body>

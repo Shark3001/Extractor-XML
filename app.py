@@ -1,18 +1,34 @@
 import os
-from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 import xml.etree.ElementTree as ET
+import pandas as pd
 import openpyxl
 from openpyxl.styles import numbers, PatternFill
 from datetime import datetime
 import io
-import uuid
 
 # Inicializa la aplicación Flask
 app = Flask(__name__)
-# Usamos una clave secreta segura y generada dinámicamente
-app.secret_key = os.environ.get("SECRET_KEY_APP_XML", str(uuid.uuid4()))
+# ¡IMPORTANTE! Cambia esta clave secreta por una cadena larga y aleatoria
+# Esto es crucial para la seguridad de tu aplicación en producción.
+app.secret_key = 'tu_clave_secreta_aqui_CAMBIALA_por_algo_seguro_y_largo' # Reemplaza con una clave segura
 
-# --- Funciones de formateo de datos ---
+# La contraseña correcta para el inicio de sesión
+CORRECT_PASSWORD = "AFC2024*" 
+
+# Configuración de la carpeta de subidas
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['ALLOWED_EXTENSIONS'] = {'xml'}
+
+# Asegurarse de que la carpeta de subidas existe
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
+def allowed_file(filename):
+    """Verifica si la extensión del archivo es XML."""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
 def formatear_numero(valor):
     """Formatea un valor numérico, reemplazando puntos por comas."""
     if valor is None:
@@ -31,7 +47,6 @@ def formatear_fecha(fecha_str):
             return fecha_str  # Devuelve la cadena original si no se puede formatear
     return ""
 
-# --- Lógica principal para extraer datos XML y generar el Excel ---
 def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     """
     Extrae datos de archivos XML (en memoria) y los guarda en un objeto BytesIO de Excel.
@@ -41,10 +56,10 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ws = wb.active
     # Define los encabezados de las columnas del Excel
     headers = ["Clave", "Consecutivo", "Fecha", "Nombre Emisor", "Número Emisor", "Nombre Receptor", "Número Receptor",
-               "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
-               "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
-               "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
-               "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
+                         "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
+                         "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
+                         "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
+                         "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
     ws.append(headers)
 
     # Itera sobre cada archivo XML recibido
@@ -56,72 +71,77 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             root = tree.getroot()
             # Define el namespace para buscar elementos XML correctamente
             ns = {'cf': 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.3/facturaElectronica'}
+            
+            # Limpiar namespaces para compatibilidad
+            for elem in root.iter():
+                elem.tag = elem.tag.split('}', 1)[-1]
+            ns_clean = {}
 
             # Verifica si es una Factura Electrónica
-            if root.tag.endswith('FacturaElectronica'):
+            if root.tag.endswith('FacturaElectronica') or root.tag == 'FacturaElectronica':
                 # Extrae todos los datos relevantes de la factura
-                clave_element = root.find('cf:Clave', ns)
+                clave_element = root.find('Clave')
                 clave = clave_element.text if clave_element is not None else ""
-                consecutivo_element = root.find('cf:NumeroConsecutivo', ns)
+                consecutivo_element = root.find('NumeroConsecutivo')
                 consecutivo = consecutivo_element.text if consecutivo_element is not None else ""
-                fecha_element = root.find('cf:FechaEmision', ns)
+                fecha_element = root.find('FechaEmision')
                 fecha = formatear_fecha(fecha_element.text) if fecha_element is not None else ""
-                nombre_emisor_element = root.find('cf:Emisor/cf:Nombre', ns)
+                nombre_emisor_element = root.find('Emisor/Nombre')
                 nombre_emisor = nombre_emisor_element.text if nombre_emisor_element is not None else ""
-                numero_emisor_element = root.find('cf:Emisor/cf:Identificacion/cf:Numero', ns)
+                numero_emisor_element = root.find('Emisor/Identificacion/Numero')
                 numero_emisor = numero_emisor_element.text if numero_emisor_element is not None else ""
-                nombre_receptor_element = root.find('cf:Receptor/cf:Nombre', ns)
+                nombre_receptor_element = root.find('Receptor/Nombre')
                 nombre_receptor = nombre_receptor_element.text if nombre_receptor_element is not None else ""
-                numero_receptor_element = root.find('cf:Receptor/cf:Identificacion/cf:Numero', ns)
+                numero_receptor_element = root.find('Receptor/Identificacion/Numero')
                 numero_receptor = numero_receptor_element.text if numero_receptor_element is not None else ""
 
-                detalles_servicio = root.find('cf:DetalleServicio', ns)
+                detalles_servicio = root.find('DetalleServicio')
                 # Maneja el caso en que no haya detalles de servicio
-                lineas_detalle = detalles_servicio.findall('cf:LineaDetalle', ns) if detalles_servicio is not None else []
+                lineas_detalle = detalles_servicio.findall('LineaDetalle') if detalles_servicio is not None else []
 
                 # Itera sobre cada línea de detalle de la factura
                 for linea in lineas_detalle:
-                    codigo_cabys_element = linea.find('cf:Codigo', ns)
+                    codigo_cabys_element = linea.find('Codigo')
                     codigo_cabys = codigo_cabys_element.text if codigo_cabys_element is not None else ""
-                    detalle_element = linea.find('cf:Detalle', ns)
+                    detalle_element = linea.find('Detalle')
                     detalle = detalle_element.text if detalle_element is not None else ""
-                    cantidad_element = linea.find('cf:Cantidad', ns)
+                    cantidad_element = linea.find('Cantidad')
                     cantidad = formatear_numero(cantidad_element.text) if cantidad_element is not None else ""
-                    precio_unitario_element = linea.find('cf:PrecioUnitario', ns)
+                    precio_unitario_element = linea.find('PrecioUnitario')
                     precio_unitario = formatear_numero(precio_unitario_element.text) if precio_unitario_element is not None else ""
-                    monto_total_element = linea.find('cf:MontoTotal', ns)
+                    monto_total_element = linea.find('MontoTotal')
                     monto_total = formatear_numero(monto_total_element.text) if monto_total_element is not None else ""
-                    monto_descuento_element = linea.find('cf:Descuento/cf:MontoDescuento', ns)
+                    monto_descuento_element = linea.find('Descuento/MontoDescuento')
                     monto_descuento = formatear_numero(monto_descuento_element.text) if monto_descuento_element is not None else "0,00"
-                    subtotal_element = linea.find('cf:SubTotal', ns)
+                    subtotal_element = linea.find('SubTotal')
                     subtotal = formatear_numero(subtotal_element.text) if subtotal_element is not None else ""
-                    impuesto = linea.find('cf:Impuesto', ns)
-                    tarifa = formatear_numero(impuesto.find('cf:Tarifa', ns).text) if impuesto is not None and impuesto.find('cf:Tarifa', ns) is not None else "0,00"
-                    monto_impuesto = formatear_numero(impuesto.find('cf:Monto', ns).text) if impuesto is not None and impuesto.find('cf:Monto', ns) is not None else "0,00"
-                    impuesto_neto_element = linea.find('cf:ImpuestoNeto', ns)
+                    impuesto = linea.find('Impuesto')
+                    tarifa = formatear_numero(impuesto.find('Tarifa').text) if impuesto is not None and impuesto.find('Tarifa') is not None else "0,00"
+                    monto_impuesto = formatear_numero(impuesto.find('Monto').text) if impuesto is not None and impuesto.find('Monto') is not None else "0,00"
+                    impuesto_neto_element = linea.find('ImpuestoNeto')
                     impuesto_neto = formatear_numero(impuesto_neto_element.text) if impuesto_neto_element is not None else ""
 
-                    codigo_moneda_element = root.find('cf:ResumenFactura/cf:CodigoTipoMoneda/cf:CodigoMoneda', ns)
+                    codigo_moneda_element = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda')
                     codigo_moneda = codigo_moneda_element.text if codigo_moneda_element is not None else ""
-                    tipo_cambio_element = root.find('cf:ResumenFactura/cf:CodigoTipoMoneda/cf:TipoCambio', ns)
+                    tipo_cambio_element = root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio')
                     tipo_cambio = formatear_numero(tipo_cambio_element.text) if tipo_cambio_element is not None else ""
-                    total_gravado_element = root.find('cf:ResumenFactura/cf:TotalGravado', ns)
+                    total_gravado_element = root.find('ResumenFactura/TotalGravado')
                     total_gravado = formatear_numero(total_gravado_element.text) if total_gravado_element is not None else ""
-                    total_exento_element = root.find('cf:ResumenFactura/cf:TotalExento', ns)
+                    total_exento_element = root.find('ResumenFactura/TotalExento')
                     total_exento = formatear_numero(total_exento_element.text) if total_exento_element is not None else ""
-                    total_exonerado_element = root.find('cf:ResumenFactura/cf:TotalExonerado', ns)
+                    total_exonerado_element = root.find('ResumenFactura/TotalExonerado')
                     total_exonerado = formatear_numero(total_exonerado_element.text) if total_exonerado_element is not None else ""
-                    total_venta_element = root.find('cf:ResumenFactura/cf:TotalVenta', ns)
+                    total_venta_element = root.find('ResumenFactura/TotalVenta')
                     total_venta = formatear_numero(total_venta_element.text) if total_venta_element is not None else ""
-                    total_descuentos_element = root.find('cf:ResumenFactura/cf:TotalDescuentos', ns)
+                    total_descuentos_element = root.find('ResumenFactura/TotalDescuentos')
                     total_descuentos = formatear_numero(total_descuentos_element.text) if total_descuentos_element is not None else ""
-                    total_venta_neta_element = root.find('cf:ResumenFactura/cf:TotalVentaNeta', ns)
+                    total_venta_neta_element = root.find('ResumenFactura/TotalVentaNeta')
                     total_venta_neta = formatear_numero(total_venta_neta_element.text) if total_venta_neta_element is not None else ""
-                    total_impuesto_element = root.find('cf:ResumenFactura/cf:TotalImpuesto', ns)
+                    total_impuesto_element = root.find('ResumenFactura/TotalImpuesto')
                     total_impuesto = formatear_numero(total_impuesto_element.text) if total_impuesto_element is not None else ""
-                    total_comprobante_element = root.find('cf:ResumenFactura/cf:TotalComprobante', ns)
+                    total_comprobante_element = root.find('ResumenFactura/TotalComprobante')
                     total_comprobante = formatear_numero(total_comprobante_element.text) if total_comprobante_element is not None else ""
-                    otros_cargos_element = root.find('cf:OtrosCargos/cf:MontoCargo', ns)
+                    otros_cargos_element = root.find('OtrosCargos/MontoCargo')
                     otros_cargos = formatear_numero(otros_cargos_element.text) if otros_cargos_element is not None else ""
 
                     # Construye la fila de datos para el Excel
@@ -137,9 +157,9 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                 ws.append(fila_excel)
 
         except ET.ParseError as e:
-            print(f"Error al parsear el archivo XML '{filename}': {e}")
+            flash(f"Error al parsear el archivo XML '{filename}': {e}", 'error')
         except Exception as e:
-            print(f"Error al procesar el archivo '{filename}': {e}")
+            flash(f"Error al procesar el archivo '{filename}': {e}", 'error')
 
     # --- Aplicar formato y resaltado al Excel ---
     # Convertir columnas a formato numérico (para los valores monetarios)
@@ -162,7 +182,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     fill = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid") # Color azul claro
     for col_idx in columnas_a_resaltar:
         if 0 < col_idx <= ws.max_column: # Asegura que el índice de la columna sea válido
-            # Accede a la columna completa y aplica el relleno al encabezado y las celdas
+            # Accede a la columna completa y aplica el relleno a cada celda
             columna = list(ws.columns)[col_idx - 1]
             for cell in columna:
                 cell.fill = fill
@@ -190,6 +210,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         ws.delete_rows(row_idx)
 
     # Guarda el libro de Excel en un objeto BytesIO (buffer en memoria)
+    # Esto es crucial para enviar el archivo directamente al navegador sin guardarlo en disco.
     excel_stream = io.BytesIO()
     wb.save(excel_stream)
     excel_stream.seek(0) # Mueve el puntero al inicio del stream para que se pueda leer desde el principio
@@ -197,78 +218,63 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     return excel_stream
 
 # --- Rutas de la aplicación web Flask ---
-@app.route("/")
-def index():
-    if "logged_in" not in session:
-        return redirect(url_for("login"))
-    # Renderiza el index.html solo si el usuario está logueado
-    return render_template("index.html")
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    if request.method == "POST":
-        password = request.form.get("password")
-        # Aquí se corrige la contraseña para que sea la clave correcta
-        if password == "AFC2024*":
-            session["logged_in"] = True
-            flash("Inicio de sesión exitoso.", "success")
-            return redirect(url_for("index"))
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == CORRECT_PASSWORD:
+            session['logged_in'] = True
+            flash('Inicio de sesión exitoso.', 'success')
+            return redirect(url_for('index'))
         else:
-            flash("Contraseña incorrecta. Inténtalo de nuevo.", "danger")
-            return redirect(url_for("login"))
-    return render_template("login.html")
+            flash('Contraseña incorrecta. Inténtalo de nuevo.', 'error')
+            return redirect(url_for('login'))
+    return render_template('login.html')
+
+@app.route('/')
+def index():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    return render_template('index.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    flash('Has cerrado sesión correctamente.', 'success')
+    return redirect(url_for('login'))
 
 @app.route('/upload', methods=['POST'])
 def upload_files():
-    """Ruta para manejar la carga de archivos XML y generar el Excel."""
-    # Verifica que el usuario haya iniciado sesión antes de procesar los archivos
-    if "logged_in" not in session:
-        flash("Necesitas iniciar sesión para acceder a esta función.", "warning")
-        return redirect(url_for("login"))
+    if not session.get('logged_in'):
+        flash('Por favor, inicia sesión para acceder a esta función.', 'error')
+        return redirect(url_for('login'))
 
-    # Verifica si se enviaron archivos XML en la solicitud
-    if 'files[]' not in request.files:
-        flash('No se encontraron archivos XML. Por favor, selecciona al menos uno.')
+    if 'xml_files' not in request.files:
+        flash('No se subieron archivos.', 'error')
         return redirect(url_for('index'))
 
-    # Obtiene la lista de archivos XML subidos
-    xml_files = request.files.getlist('files[]')
-    if not xml_files or all(f.filename == '' for f in xml_files):
-        flash('No se seleccionó ningún archivo XML. Por favor, arrastra o selecciona archivos.')
+    files = request.files.getlist('xml_files')
+    if not files or files[0].filename == '':
+        flash('No se seleccionó ningún archivo.', 'error')
         return redirect(url_for('index'))
 
-    # Obtiene el número de receptor ingresado por el usuario
-    # Ahora el campo de contraseña está eliminado, solo se usa el campo del número de identificación
-    numero_receptor_filtro = request.form.get('idReceptor', '').strip()
-    if not numero_receptor_filtro:
-        flash('Por favor, ingrese el número de identificación del receptor.')
+    numero_receptor = request.form.get('numero_receptor')
+    if not numero_receptor:
+        flash('El número de identificación del receptor es obligatorio.', 'error')
         return redirect(url_for('index'))
 
-    try:
-        # Llama a la función para extraer datos y generar el Excel en memoria
-        excel_stream = extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro)
-        # Envía el archivo Excel generado al navegador para su descarga
-        return send_file(
-            excel_stream,
-            download_name='datos_facturas.xlsx', # Nombre del archivo que se descargará
-            as_attachment=True, # Indica que es un archivo adjunto para descargar
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' # Tipo MIME para archivos .xlsx
-        )
-    except Exception as e:
-        # Manejo de errores durante el procesamiento
-        flash(f'Ocurrió un error al procesar los archivos: {e}')
-        # Redirige de vuelta a la página de inicio con el mensaje de error
-        return redirect(url_for('index'))
+    # Llama a la función para extraer datos y generar el Excel en memoria
+    excel_stream = extraer_datos_xml_en_memoria(files, numero_receptor)
+    
+    # Envía el archivo Excel generado al navegador para su descarga
+    flash('Excel generado y listo para descargar.', 'success')
+    return send_file(
+        excel_stream,
+        download_name='datos_facturas.xlsx', # Nombre del archivo que se descargará
+        as_attachment=True, # Indica que es un archivo adjunto para descargar
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' # Tipo MIME para archivos .xlsx
+    )
 
-@app.route("/logout")
-def logout():
-    session.pop("logged_in", None)
-    flash("Has cerrado sesión.", "info")
-    return redirect(url_for("login"))
-
-# Bloque principal para ejecutar la aplicación Flask
 if __name__ == '__main__':
-    # Asegura que la carpeta 'templates' exista al iniciar la app
-    if not os.path.exists('templates'):
-        os.makedirs('templates')
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)

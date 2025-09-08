@@ -9,6 +9,11 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
         }
         .container {
             max-width: 500px;
@@ -43,7 +48,6 @@
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        /* Estilos para el input de la contraseña */
         .password-input {
             appearance: none;
             border-radius: 8px;
@@ -57,7 +61,6 @@
             border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
         }
-        /* Estilos para el botón de login */
         .login-button {
             padding: 0.75rem 1.5rem;
             border-radius: 8px;
@@ -71,24 +74,13 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+<body>
     <div class="container text-center">
         <h1 class="text-3xl font-bold text-gray-800 mb-6">Iniciar Sesión</h1>
         
-        <!-- Mensajes de Flash -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <ul class="list-none p-0">
-            {% for category, message in messages %}
-            <li class="flash-message {% if category == 'error' %}error{% else %}success{% endif %}">
-                {{ message }}
-            </li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-        {% endwith %}
+        <div id="message-container"></div>
 
-        <form action="{{ url_for('login') }}" method="post" class="space-y-4">
+        <form id="login-form" class="space-y-4">
             <div>
                 <label for="password" class="sr-only">Contraseña</label>
                 <input type="password" id="password" name="password" required
@@ -100,5 +92,35 @@
             </button>
         </form>
     </div>
+
+    <script>
+        const correctPassword = "AFC2024*"; // La contraseña correcta
+        const form = document.getElementById('login-form');
+        const passwordInput = document.getElementById('password');
+        const messageContainer = document.getElementById('message-container');
+
+        // Función para mostrar mensajes de estado
+        function showMessage(message, type) {
+            messageContainer.innerHTML = ''; // Limpiar mensajes anteriores
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flash-message ${type}`;
+            messageDiv.textContent = message;
+            messageContainer.appendChild(messageDiv);
+        }
+
+        // Manejar el envío del formulario
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const password = passwordInput.value;
+
+            if (password === correctPassword) {
+                showMessage("Inicio de sesión exitoso.", "success");
+                // Aquí podrías redirigir al usuario o mostrar el siguiente contenido
+                window.location.href = "/index.html";
+            } else {
+                showMessage("Contraseña incorrecta. Inténtalo de nuevo.", "error");
+            }
+        });
+    </script>
 </body>
 </html>

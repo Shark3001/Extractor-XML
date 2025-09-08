@@ -125,10 +125,10 @@
         .afc-logo {
             font-size: 2.5em; /* Tamaño de la fuente */
             font-weight: bold; /* Negrita */
-            color: #ff0009; /* ¡COLOR ACTUALIZADO! */
+            color: #ff0009; /* COLOR */
             text-align: center; /* Centrar el texto */
             padding-bottom: 5px; /* Espacio entre el texto y el subrayado */
-            border-bottom: 3px solid #ff0009; /* ¡COLOR ACTUALIZADO! */
+            border-bottom: 3px solid #ff0009; /* COLOR */
             display: block; /* Para que ocupe su propia línea y se centre */
             margin: 0 auto 30px auto; /* Centrar horizontalmente y añadir margen inferior */
             width: fit-content; /* El ancho se ajusta al contenido del texto */
@@ -144,7 +144,6 @@
         .logout-link:hover {
             text-decoration: underline;
         }
-        
     </style>
 </head>
 <body>
@@ -181,6 +180,14 @@
             </div>
             <button type="submit">Generar Excel</button>
         </form>
+
+        <!-- Mensaje de desarrollo -->
+        <p style="text-align:center; margin-top:20px; font-size:0.9em; color:#555;">
+            Desarrollado por 
+            <a href="mailto:jordyam30@gmail.com" style="color:#007bff; text-decoration: none;">
+                Jordy Arias
+            </a>
+        </p>
     </div>
 
     <script>
@@ -189,7 +196,7 @@
         const fileList = document.getElementById('fileList');
         let selectedFiles = []; // Almacenará los archivos que el usuario arrastre o seleccione
 
-        // 1. Evitar el comportamiento por defecto del navegador para arrastrar y soltar
+        // Evitar el comportamiento por defecto del navegador para arrastrar y soltar
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dragDropArea.addEventListener(eventName, preventDefaults, false);
             document.body.addEventListener(eventName, preventDefaults, false);
@@ -200,43 +207,34 @@
             e.stopPropagation();
         }
 
-        // 2. Resaltar el área de arrastrar y soltar cuando los archivos están sobre ella
+        // Resaltar el área de arrastrar y soltar
         ['dragenter', 'dragover'].forEach(eventName => {
             dragDropArea.addEventListener(eventName, highlight, false);
         });
-
         ['dragleave', 'drop'].forEach(eventName => {
             dragDropArea.addEventListener(eventName, unhighlight, false);
         });
+        function highlight(e) { dragDropArea.classList.add('highlight'); }
+        function unhighlight(e) { dragDropArea.classList.remove('highlight'); }
 
-        function highlight(e) {
-            dragDropArea.classList.add('highlight');
-        }
-
-        function unhighlight(e) {
-            dragDropArea.classList.remove('highlight');
-        }
-
-        // 3. Manejar los archivos cuando se sueltan en el área
+        // Manejar los archivos cuando se sueltan en el área
         dragDropArea.addEventListener('drop', handleDrop, false);
-
         function handleDrop(e) {
             const dt = e.dataTransfer;
             const files = dt.files;
             handleFiles(files);
         }
 
-        // 4. Manejar los archivos cuando se seleccionan a través del input de archivo (clic)
+        // Manejar archivos seleccionados por input
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
         });
 
-        // 5. Permite hacer clic en el área de arrastrar y soltar para abrir el selector de archivos
+        // Permite hacer clic en el área de arrastrar para abrir selector
         dragDropArea.addEventListener('click', () => {
             fileInput.click();
         });
 
-        // Función principal para procesar los archivos (ya sean arrastrados o seleccionados)
         function handleFiles(files) {
             const newFiles = Array.from(files).filter(file => file.type === 'text/xml' || file.name.toLowerCase().endsWith('.xml'));
             selectedFiles = selectedFiles.concat(newFiles);
@@ -244,29 +242,23 @@
             assignFilesToFileInput(selectedFiles);
         }
 
-        // Función para actualizar la lista de nombres de archivo en la interfaz
         function updateFileList() {
-            fileList.innerHTML = '<p>Archivos seleccionados:</p>';
-            if (selectedFiles.length === 0) {
-                fileList.innerHTML += '<p>Ninguno</p>';
-                return;
+            if(selectedFiles.length === 0){
+                fileList.innerHTML = '<p>Archivos seleccionados: Ninguno</p>';
+            } else {
+                let html = '<ul>';
+                selectedFiles.forEach(f => html += `<li>${f.name}</li>`);
+                html += '</ul>';
+                fileList.innerHTML = html;
             }
-            selectedFiles.forEach(file => {
-                const p = document.createElement('p');
-                p.textContent = file.name;
-                fileList.appendChild(p);
-            });
         }
 
-        // Función para asignar los archivos al input de tipo file
-        function assignFilesToFileInput(files) {
+        // Asignar los archivos seleccionados al input para envío con form
+        function assignFilesToFileInput(filesArray){
             const dataTransfer = new DataTransfer();
-            files.forEach(file => dataTransfer.items.add(file));
+            filesArray.forEach(file => dataTransfer.items.add(file));
             fileInput.files = dataTransfer.files;
         }
-
-        // Al cargar la página, inicializar la lista de archivos
-        updateFileList();
     </script>
 </body>
 </html>

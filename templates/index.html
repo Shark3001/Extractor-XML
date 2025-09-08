@@ -122,12 +122,24 @@
           {% endif %}
         {% endwith %}
 
-        <form id="uploadForm" action="{{ url_for('upload_files') }}" method="post" enctype="multipart/form-data">
+        <!-- Agregado: Mensaje de error para la contraseña -->
+        <div id="passwordError" class="alert alert-danger" style="display:none;" role="alert">
+            Contraseña incorrecta. Inténtalo de nuevo.
+        </div>
+
+        <!-- Agregado: onsubmit para validar la contraseña -->
+        <form id="uploadForm" action="{{ url_for('upload_files') }}" method="post" enctype="multipart/form-data" onsubmit="return validatePassword(event)">
             <div class="mb-3">
                 <label for="idReceptor" class="form-label">Número de Identificación del Receptor (sin guiones):</label>
                 <input type="text" class="form-control" id="idReceptor" name="idReceptor" placeholder="1" required>
             </div>
             
+            <!-- Agregado: Campo de contraseña -->
+            <div class="mb-3">
+                <label for="password" class="form-label">Contraseña:</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+
             <div class="mb-4">
                 <p class="form-label">Arrastre sus archivos XML aquí o haga clic para seleccionarlos:</p>
                 <div class="drop-area" id="dropArea">
@@ -153,6 +165,25 @@
     </div>
     
     <script>
+        // Función para validar la contraseña
+        function validatePassword(event) {
+            const passwordInput = document.getElementById('password');
+            const passwordError = document.getElementById('passwordError');
+            const correctPassword = "AFC2024*"; // Contraseña requerida
+
+            if (passwordInput.value !== correctPassword) {
+                // Si la contraseña es incorrecta, muestra el mensaje de error
+                passwordError.style.display = 'block';
+                // Previene el envío del formulario
+                event.preventDefault();
+                return false;
+            } else {
+                // Si la contraseña es correcta, oculta cualquier mensaje de error anterior
+                passwordError.style.display = 'none';
+                return true;
+            }
+        }
+
         // Inicio del script para la funcionalidad de arrastrar y soltar
         const dropArea = document.getElementById('dropArea');
         const fileInput = document.getElementById('fileInput');

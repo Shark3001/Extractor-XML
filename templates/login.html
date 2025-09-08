@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .container {
+            max-width: 500px;
+            margin: auto;
+            padding: 2rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .flash-message {
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+            opacity: 0;
+            animation: slideIn 0.3s forwards;
+        }
+        .flash-message.error {
+            background-color: #fca5a5;
+            color: #b91c1c;
+        }
+        .flash-message.success {
+            background-color: #a7f3d0;
+            color: #065f46;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Estilos para el input de la contraseña */
+        .password-input {
+            appearance: none;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            border: 1px solid #d1d5db;
+            width: 100%;
+            transition: all 0.2s ease-in-out;
+        }
+        .password-input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
+        }
+        /* Estilos para el botón de login */
+        .login-button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            background-color: #2563eb;
+            color: #ffffff;
+            font-weight: 600;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .login-button:hover {
+            background-color: #1d4ed8;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="container text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">Iniciar Sesión</h1>
+        
+        <!-- Mensajes de Flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <ul class="list-none p-0">
+            {% for category, message in messages %}
+            <li class="flash-message {% if category == 'error' %}error{% else %}success{% endif %}">
+                {{ message }}
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('login') }}" method="post" class="space-y-4">
+            <div>
+                <label for="password" class="sr-only">Contraseña</label>
+                <input type="password" id="password" name="password" required
+                       class="password-input text-lg placeholder-gray-500"
+                       placeholder="Ingresa la contraseña">
+            </div>
+            <button type="submit" class="login-button w-full">
+                Acceder
+            </button>
+        </form>
+    </div>
+</body>
+</html>

@@ -39,7 +39,6 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ]
     ws_detalladas.append(headers)
 
-    # Diccionario para acumular resumen por factura
     resumen_por_factura = {}
 
     for uploaded_file in xml_files:
@@ -48,7 +47,6 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             tree = ET.parse(uploaded_file)
             root = tree.getroot()
 
-            # Quitar namespaces
             for elem in root.iter():
                 elem.tag = elem.tag.split('}', 1)[-1]
 
@@ -64,12 +62,8 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                 detalles_servicio = root.find('DetalleServicio')
                 lineas_detalle = detalles_servicio.findall('LineaDetalle') if detalles_servicio is not None else []
 
-                # Variables para resumen
-                total_venta_resumen = 0
-                total_descuentos_resumen = 0
-                total_venta_neta_resumen = 0
-                total_impuesto_resumen = 0
-                total_comprobante_resumen = 0
+                # Variables para resumen por factura
+                total_venta = total_descuentos = subtotal = tarifa = total_venta_neta = total_impuesto = total_comprobante = otros_cargos = ""
 
                 for linea in lineas_detalle:
                     codigo_cabys = linea.find('Codigo').text if linea.find('Codigo') is not None else ""
@@ -78,9 +72,9 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     precio_unitario = formatear_numero(linea.find('PrecioUnitario').text) if linea.find('PrecioUnitario') is not None else ""
                     monto_total = formatear_numero(linea.find('MontoTotal').text) if linea.find('MontoTotal') is not None else ""
                     monto_descuento = formatear_numero(linea.find('Descuento/MontoDescuento').text) if linea.find('Descuento/MontoDescuento') is not None else "0,00"
-                    subtotal = formatear_numero(linea.find('SubTotal').text) if linea.find('SubTotal') is not None else ""
+                    subtotal_linea = formatear_numero(linea.find('SubTotal').text) if linea.find('SubTotal') is not None else ""
                     impuesto = linea.find('Impuesto')
-                    tarifa = formatear_numero(impuesto.find('Tarifa').text) if impuesto is not None and impuesto.find('Tarifa') is not None else "0,00"
+                    tarifa_linea = formatear_numero(impuesto.find('Tarifa').text) if impuesto is not None and impuesto.find('Tarifa') is not None else "0,00"
                     monto_impuesto = formatear_numero(impuesto.find('Monto').text) if impuesto is not None and impuesto.find('Monto') is not None else "0,00"
                     impuesto_neto = formatear_numero(linea.find('ImpuestoNeto').text) if linea.find('ImpuestoNeto') is not None else ""
 
@@ -96,99 +90,57 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     total_comprobante = formatear_numero(root.find('ResumenFactura/TotalComprobante').text) if root.find('ResumenFactura/TotalComprobante') is not None else ""
                     otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else ""
 
+                    # Fila detallada
                     fila_excel = [
                         clave, consecutivo, fecha, nombre_emisor, numero_emisor, nombre_receptor, numero_receptor,
-                        codigo_cabys, detalle, cantidad, precio_unitario, monto_total, monto_descuento, subtotal,
-                        tarifa, monto_impuesto, impuesto_neto, codigo_moneda, tipo_cambio,
+                        codigo_cabys, detalle, cantidad, precio_unitario, monto_total, monto_descuento, subtotal_linea,
+                        tarifa_linea, monto_impuesto, impuesto_neto, codigo_moneda, tipo_cambio,
                         total_gravado, total_exento, total_exonerado, total_venta, total_descuentos,
                         total_venta_neta, total_impuesto, total_comprobante, otros_cargos, filename, "Factura Electronica"
                     ]
                     ws_detalladas.append(fila_excel)
 
-                    # Acumular totales para resumen
-                    try:
-                        total_venta_resumen += float(total_venta.replace(",", "."))
-                        total_descuentos_resumen += float(total_descuentos.replace(",", "."))
-                        total_venta_neta_resumen += float(total_venta_neta.replace(",", "."))
-                        total_impuesto_resumen += float(total_impuesto.replace(",", "."))
-                        total_comprobante_resumen += float(total_comprobante.replace(",", "."))
-                    except:
-                        pass
-
-                # Guardar resumen por factura
+                # Guardar resumen (una fila por factura)
                 resumen_por_factura[(clave, consecutivo)] = [
                     clave, consecutivo, fecha, nombre_emisor, numero_emisor, nombre_receptor, numero_receptor,
-                    total_venta_resumen, total_descuentos_resumen, total_venta_neta_resumen, total_impuesto_resumen,
-                    total_comprobante_resumen, filename, "Factura Electronica"
+                    "", "", "", "", "", "", "", "", "", "", total_venta, total_descuentos, subtotal_linea, tarifa_linea,
+                    total_venta_neta, total_impuesto, total_comprobante, otros_cargos, filename, "Factura Electronica"
                 ]
-            else:
-                ws_detalladas.append([""] * 29 + [filename, "Otro Documento"])
 
-        except ET.ParseError as e:
-            flash(f"Error al parsear '{filename}': {e}", 'error')
         except Exception as e:
             flash(f"Error al procesar '{filename}': {e}", 'error')
 
-    # ---- Crear hoja resumida ----
+    # Crear hoja resumida
     ws_resumen = wb.create_sheet(title="facturas_resumidas")
-    headers_resumen = [
-        "Clave","Consecutivo","Fecha","Nombre Emisor","Número Emisor","Nombre Receptor","Número Receptor",
-        "Total Venta","Total Descuentos","Total Venta Neta","Total Impuesto","Total Comprobante","Archivo","Tipo de Documento"
-    ]
-    ws_resumen.append(headers_resumen)
-
+    ws_resumen.append(headers)
     for resumen in resumen_por_factura.values():
         ws_resumen.append(resumen)
 
-    # ---- Aplicar formato numérico y colores ----
-    columnas_numericas_detalle = [10,11,12,13,14,15,16,17,19,20,21,22,23,24,25,26,27,28]
-    columnas_a_resaltar_detalle = [2,3,9,16,21,24,25,29]
-    fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
-    fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
+    # Formato numérico y colores para ambas hojas
+    for ws in [ws_detalladas, ws_resumen]:
+        columnas_numericas = [10,11,12,13,14,15,16,17,19,20,21,22,23,24,25,26,27,28]
+        for fila in ws.iter_rows(min_row=2):
+            for idx_col in columnas_numericas:
+                celda = fila[idx_col - 1]
+                try:
+                    if isinstance(celda.value, str):
+                        celda.value = float(celda.value.replace(",", "."))
+                    celda.number_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
+                except Exception:
+                    pass
 
-    # Formato y colores en facturas_detalladas
-    for fila in ws_detalladas.iter_rows(min_row=2):
-        for idx_col in columnas_numericas_detalle:
-            celda = fila[idx_col - 1]
-            try:
-                if isinstance(celda.value, str):
-                    celda.value = float(celda.value.replace(",", "."))
-                celda.number_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
-            except:
-                pass
-        for col_idx in columnas_a_resaltar_detalle:
-            if 0 < col_idx <= ws_detalladas.max_column:
-                fila[col_idx - 1].fill = fill_celeste
-        # Rojo si receptor no coincide
-        if fila[6].value and numero_receptor_filtro and str(fila[6].value) != str(numero_receptor_filtro):
-            fila[6].fill = fill_rojo
+        columnas_a_resaltar = [2,3,9,16,21,24,25,29]
+        fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
+        for col_idx in columnas_a_resaltar:
+            if 0 < col_idx <= ws.max_column:
+                for cell in list(ws.columns)[col_idx - 1]:
+                    cell.fill = fill_celeste
 
-    # Formato y colores en facturas_resumidas
-    columnas_numericas_resumen = [8,9,10,11,12]
-    columnas_a_resaltar_resumen = [2,3,8,11,12]
-    for fila in ws_resumen.iter_rows(min_row=2):
-        for idx_col in columnas_numericas_resumen:
-            celda = fila[idx_col - 1]
-            try:
-                celda.value = float(celda.value)
-                celda.number_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
-            except:
-                pass
-        for col_idx in columnas_a_resaltar_resumen:
-            if 0 < col_idx <= ws_resumen.max_column:
-                fila[col_idx - 1].fill = fill_celeste
-        # Rojo si receptor no coincide
-        if fila[6].value and numero_receptor_filtro and str(fila[6].value) != str(numero_receptor_filtro):
-            fila[6].fill = fill_rojo
-
-    # Eliminar filas vacías en ambas hojas
-    for ws_iter in [ws_detalladas, ws_resumen]:
-        vacias = []
-        for i, row in enumerate(ws_iter.iter_rows(min_row=2), start=2):
-            if all(c.value is None or (isinstance(c.value, str) and not c.value.strip()) for c in row):
-                vacias.append(i)
-        for i in reversed(vacias):
-            ws_iter.delete_rows(i)
+        fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
+        if 6 < ws.max_column:
+            for cell in list(ws.columns)[6][1:]:
+                if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
+                    cell.fill = fill_rojo
 
     out = io.BytesIO()
     wb.save(out)
@@ -252,3 +204,4 @@ def upload_files():
 
 if __name__ == '__main__':
     app.run(debug=False)
+

@@ -41,10 +41,10 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ws = wb.active
     # Define los encabezados de las columnas del Excel
     headers = ["Clave", "Consecutivo", "Fecha", "Nombre Emisor", "Número Emisor", "Nombre Receptor", "Número Receptor",
-                          "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
-                          "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
-                          "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
-                          "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
+               "Código Cabys", "Detalle", "Cantidad", "Precio Unitario", "Monto Total", "Monto Descuento", "Subtotal",
+               "Tarifa (%)", "Monto Impuesto", "Impuesto Neto", "Código Moneda", "Tipo Cambio",
+               "Total Gravado", "Total Exento", "Total Exonerado", "Total Venta", "Total Descuentos",
+               "Total Venta Neta", "Total Impuesto", "Total Comprobante", "Otros Cargos", "Archivo", "Tipo de Documento"]
     ws.append(headers)
 
     # Itera sobre cada archivo XML recibido
@@ -201,6 +201,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
 def index():
     if "logged_in" not in session:
         return redirect(url_for("login"))
+    # Renderiza el index.html solo si el usuario está logueado
     return render_template("index.html")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -220,10 +221,11 @@ def login():
 @app.route('/upload', methods=['POST'])
 def upload_files():
     """Ruta para manejar la carga de archivos XML y generar el Excel."""
+    # Verifica que el usuario haya iniciado sesión antes de procesar los archivos
     if "logged_in" not in session:
         flash("Necesitas iniciar sesión para acceder a esta función.", "warning")
         return redirect(url_for("login"))
-        
+
     # Verifica si se enviaron archivos XML en la solicitud
     if 'files[]' not in request.files:
         flash('No se encontraron archivos XML. Por favor, selecciona al menos uno.')
@@ -236,6 +238,7 @@ def upload_files():
         return redirect(url_for('index'))
 
     # Obtiene el número de receptor ingresado por el usuario
+    # Ahora el campo de contraseña está eliminado, solo se usa el campo del número de identificación
     numero_receptor_filtro = request.form.get('idReceptor', '').strip()
     if not numero_receptor_filtro:
         flash('Por favor, ingrese el número de identificación del receptor.')
@@ -269,4 +272,3 @@ if __name__ == '__main__':
     if not os.path.exists('templates'):
         os.makedirs('templates')
     app.run(debug=True, host='0.0.0.0', port=5000)
-

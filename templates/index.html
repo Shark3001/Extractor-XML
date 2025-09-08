@@ -1,371 +1,229 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor de XML a Excel</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            min-height: 100vh;
-            margin: 0;
-            padding: 2rem;
-        }
-        .container {
-            background-color: #fff;
-            padding: 2.5rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            width: 100%;
-            max-width: 600px;
-            text-align: center;
-        }
-        .logo {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #f97316;
-            margin-bottom: 1rem;
-            text-decoration: underline;
-        }
-        .title {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #1f2937;
-            margin-bottom: 2rem;
-            text-decoration: underline;
-        }
-        .input-group {
-            margin-bottom: 1.5rem;
-            text-align: left;
-        }
-        .input-label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #4b5563;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-        .input-field {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            font-size: 1rem;
-            color: #1f2937;
-            box-sizing: border-box;
-        }
-        .btn {
-            padding: 0.75rem 2rem;
-            background-color: #2563eb;
-            color: #fff;
-            font-weight: 600;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            border: none;
-            width: 100%;
-        }
-        .btn:hover:not(:disabled) {
-            background-color: #1d4ed8;
-        }
-        .btn:disabled {
-            background-color: #93c5fd;
-            cursor: not-allowed;
-        }
-        .alert {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-            font-weight: 500;
-            text-align: left;
-        }
-        .alert-success {
-            background-color: #d1fae5;
-            color: #065f46;
-        }
-        .alert-danger {
-            background-color: #fee2e2;
-            color: #991b1b;
-        }
-        .alert-warning {
-            background-color: #fffbeb;
-            color: #92400e;
-        }
-        .logout-btn {
-            margin-top: 1rem;
-            color: #9ca3af;
-            text-decoration: none;
-            font-size: 0.875rem;
-        }
-        .logout-btn:hover {
-            text-decoration: underline;
-        }
-        .file-input {
-            border: 2px dashed #d1d5db;
-            padding: 2rem;
-            border-radius: 0.5rem;
-            cursor: pointer;
-            text-align: center;
-            transition: border-color 0.3s;
-        }
-        .file-input:hover {
-            border-color: #2563eb;
-        }
-        .file-input p {
-            font-size: 1rem;
-            color: #6b7280;
-            margin: 0;
-        }
-        .file-input input {
-            display: none;
-        }
-        .file-input.drag-over {
-            border-color: #2563eb;
-            background-color: #eef2ff;
-        }
-        .file-list {
-            list-style: none;
-            padding: 0;
-            margin-top: 1rem;
-            text-align: left;
-        }
-        .file-list li {
-            background-color: #f9fafb;
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.875rem;
-            color: #4b5563;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extractor de XML a Excel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            background-color: #fff;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #f97316;
+            margin-bottom: 1rem;
+            text-decoration: underline;
+        }
+        .title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 2rem;
+            text-decoration: underline;
+        }
+        .input-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+        .input-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4b5563;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .input-field {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            color: #1f2937;
+            box-sizing: border-box;
+        }
+        .btn {
+            padding: 0.75rem 2rem;
+            background-color: #2563eb;
+            color: #fff;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            border: none;
+            width: 100%;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: #1d4ed8;
+        }
+        .btn:disabled {
+            background-color: #93c5fd;
+            cursor: not-allowed;
+        }
+        .alert {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            text-align: left;
+        }
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .alert-danger {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+        .alert-warning {
+            background-color: #fffbeb;
+            color: #92400e;
+        }
+        .logout-btn {
+            margin-top: 1rem;
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+        .logout-btn:hover {
+            text-decoration: underline;
+        }
+        .file-input {
+            border: 2px dashed #d1d5db;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            text-align: center;
+            transition: border-color 0.3s;
+        }
+        .file-input:hover {
+            border-color: #2563eb;
+        }
+        .file-input p {
+            font-size: 1rem;
+            color: #6b7280;
+            margin: 0;
+        }
+        .file-input input {
+            display: none;
+        }
+        .file-input.drag-over {
+            border-color: #2563eb;
+            background-color: #eef2ff;
+        }
+        .file-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 1rem;
+            text-align: left;
+        }
+        .file-list li {
+            background-color: #f9fafb;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Logo y título de la aplicación -->
-        <div class="logo">afc</div>
-        <h1 class="title">Extractor de XML a Excel</h1>
+    <div class="container">
+        <div class="logo">afc</div>
+        <h1 class="title">Extractor de XML a Excel</h1>
 
-        <!-- Contenedor para mensajes -->
-        <div id="message-container"></div>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div id="message-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
-        <!-- Formulario de carga de archivos -->
-        <form id="upload-form">
-            <div class="input-group">
-                <label for="idReceptor" class="input-label">Número de Identificación del Receptor (sin guiones):</label>
-                <input type="text" id="idReceptor" name="idReceptor" class="input-field" placeholder="Ej: 3101123456" required>
-            </div>
+                <form id="upload-form" action="{{ url_for('upload_files') }}" method="post" enctype="multipart/form-data">
+            <div class="input-group">
+                <label for="idReceptor" class="input-label">Número de Identificación del Receptor:</label>
+                <input type="text" id="idReceptor" name="idReceptor" class="input-field" placeholder="Ej: 3101123456" required>
+            </div>
+            <div class="input-group">
+                <label class="input-label">Arrastra y suelta tus archivos XML o haz clic aquí:</label>
+                <div class="file-input" id="drop-area">
+                    <p>Arrastra archivos XML aquí</p>
+                    <input type="file" id="fileElem" name="files[]" multiple accept=".xml">
+                </div>
+                <ul class="file-list" id="file-list"></ul>
+            </div>
+            <button type="submit" class="btn">Generar Excel</button>
+        </form>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
+        <p class="text-sm text-gray-500 mt-4">Desarrollado por <a href="mailto:jordyam30@gmail.com?subject=Consulta%20sobre%20el%20Extractor%20de%20XML%20a%20Excel" class="text-blue-600 hover:text-blue-800 hover:underline">Jordy Arias</a></p>
+    </div>
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileElem = document.getElementById('fileElem');
+        const fileList = document.getElementById('file-list');
 
-            <div class="input-group">
-                <label class="input-label">Arrastra y suelta tus archivos XML o haz clic aquí:</label>
-                <div class="file-input" id="drop-area">
-                    <p>Arrastra archivos XML aquí</p>
-                    <input type="file" id="fileElem" name="files[]" multiple accept=".xml">
-                </div>
-                <ul class="file-list" id="file-list"></ul>
-            </div>
-            <button type="submit" class="btn" id="generate-btn">Generar Excel</button>
-        </form>
+        // Manejo de la interfaz de usuario (Drag & Drop)
+        ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        ;['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
+        });
+        ;['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
+        });
 
-        <a href="login.html" class="logout-btn" id="logout-link">Cerrar Sesión</a>
+        dropArea.addEventListener('drop', handleDrop, false);
+        dropArea.addEventListener('click', () => fileElem.click(), false);
+        fileElem.addEventListener('change', (e) => handleFiles(e.target.files), false);
 
-        <!-- Línea del desarrollador -->
-        <p class="text-sm text-gray-500 mt-4">Desarrollado por <a href="mailto:jordyam30@gmail.com?subject=Consulta%20sobre%20el%20Extractor%20de%20XML%20a%20Excel" class="text-blue-600 hover:text-blue-800 hover:underline">Jordy Arias</a></p>
-    </div>
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Lógica para verificar la autenticación
-            if (localStorage.getItem('isLoggedIn') !== 'true') {
-                window.location.href = 'login.html';
-                return;
-            }
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
 
-            const dropArea = document.getElementById('drop-area');
-            const fileElem = document.getElementById('fileElem');
-            const fileList = document.getElementById('file-list');
-            const form = document.getElementById('upload-form');
-            const generateBtn = document.getElementById('generate-btn');
-            const idReceptorInput = document.getElementById('idReceptor');
-            const messageContainer = document.getElementById('message-container');
-
-            // --- Lógica de la interfaz de usuario (Drag & Drop) ---
-            ;['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropArea.addEventListener(eventName, preventDefaults, false);
-            });
-
-            ;['dragenter', 'dragover'].forEach(eventName => {
-                dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
-            });
-
-            ;['dragleave', 'drop'].forEach(eventName => {
-                dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
-            });
-
-            dropArea.addEventListener('drop', handleDrop, false);
-            dropArea.addEventListener('click', () => fileElem.click(), false);
-            fileElem.addEventListener('change', (e) => handleFiles(e.target.files), false);
-
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            function handleDrop(e) {
-                const dt = e.dataTransfer;
-                const files = dt.files;
-                handleFiles(files);
-            }
-
-            function handleFiles(files) {
-                fileList.innerHTML = '';
-                const newFileList = new DataTransfer();
-                let hasInvalidFile = false;
-
-                [...files].forEach(file => {
-                    // Validar si es un archivo XML
-                    if (file.name.endsWith('.xml') || file.type === "text/xml") {
-                        const listItem = document.createElement('li');
-                        listItem.textContent = file.name;
-                        fileList.appendChild(listItem);
-                        newFileList.items.add(file);
-                    } else {
-                        hasInvalidFile = true;
-                    }
-                });
-
-                fileElem.files = newFileList.files;
-                if (hasInvalidFile) {
-                    showMessage('Solo se aceptan archivos de tipo XML. Se han ignorado otros archivos.', 'warning');
-                }
-            }
-            
-            // --- Lógica de procesamiento de datos ---
-            form.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const idReceptor = idReceptorInput.value.trim();
-                const files = fileElem.files;
-                
-                if (files.length === 0) {
-                    showMessage('Por favor, selecciona al menos un archivo XML.', 'danger');
-                    return;
-                }
-                
-                if (!idReceptor) {
-                    showMessage('Por favor, ingresa el número de identificación del receptor.', 'danger');
-                    return;
-                }
-
-                generateBtn.disabled = true;
-                generateBtn.textContent = 'Procesando...';
-                showMessage('Procesando archivos...', 'success');
-
-                try {
-                    const workbook = XLSX.utils.book_new();
-                    let allData = [];
-
-                    for (const file of files) {
-                        const fileContent = await readFileAsText(file);
-                        const data = extractDataFromXML(fileContent, idReceptor);
-                        if (data) {
-                            allData = allData.concat(data);
-                        }
-                    }
-
-                    if (allData.length > 0) {
-                        const worksheet = XLSX.utils.json_to_sheet(allData);
-                        XLSX.utils.book_append_sheet(workbook, worksheet, "Facturas");
-                        XLSX.writeFile(workbook, `Facturas_Receptor_${idReceptor}.xlsx`);
-                        showMessage('Excel generado y descargado exitosamente.', 'success');
-                    } else {
-                        showMessage('No se encontraron datos para los archivos y receptor proporcionados.', 'danger');
-                    }
-                } catch (error) {
-                    console.error("Error al procesar los archivos:", error);
-                    showMessage(`Ocurrió un error: ${error.message}`, 'danger');
-                } finally {
-                    generateBtn.disabled = false;
-                    generateBtn.textContent = 'Generar Excel';
-                }
-            });
-
-            function readFileAsText(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsText(file);
-                });
-            }
-
-            function extractDataFromXML(xmlString, idReceptor) {
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlString, "text/xml");
-                
-                const data = [];
-                const facturas = xmlDoc.querySelectorAll("FacturaElectronica");
-
-                if (facturas.length === 0) {
-                    // Manejar caso donde no hay facturas
-                    return data;
-                }
-
-                facturas.forEach(factura => {
-                    const receptor = factura.querySelector("Receptor");
-                    const idReceptorXML = receptor ? receptor.querySelector("Identificacion").textContent : null;
-
-                    if (idReceptorXML === idReceptor) {
-                        const emisor = factura.querySelector("Emisor");
-                        const detalleServicio = factura.querySelectorAll("DetalleServicio > LineaDetalle");
-                        
-                        detalleServicio.forEach(linea => {
-                            const cantidad = linea.querySelector("Cantidad").textContent;
-                            const unidadMedida = linea.querySelector("UnidadMedida").textContent;
-                            const detalle = linea.querySelector("Detalle").textContent;
-                            const precioUnitario = linea.querySelector("PrecioUnitario").textContent;
-                            const montoTotal = linea.querySelector("MontoTotal").textContent;
-                            const numeroFactura = factura.querySelector("Clave").textContent;
-                            const fechaFactura = factura.querySelector("FechaEmision").textContent;
-
-                            data.push({
-                                "Fecha": fechaFactura,
-                                "Número Factura": numeroFactura,
-                                "Cantidad": cantidad,
-                                "Unidad de Medida": unidadMedida,
-                                "Detalle": detalle,
-                                "Precio Unitario": precioUnitario,
-                                "Monto Total": montoTotal,
-                                "Emisor": emisor.querySelector("Nombre").textContent,
-                                "ID Emisor": emisor.querySelector("Identificacion > Numero").textContent,
-                                "Receptor": receptor.querySelector("Nombre").textContent,
-                                "ID Receptor": idReceptor
-                            });
-                        });
-                    }
-                });
-                
-                return data;
-            }
-
-            function showMessage(message, type) {
-                messageContainer.innerHTML = '';
-                const alertDiv = document.createElement('div');
-                alertDiv.className = `alert alert-${type}`;
-                alertDiv.textContent = message;
-                messageContainer.appendChild(alertDiv);
-            }
-
-            document.getElementById('logout-link').addEventListener('click', () => {
-                localStorage.removeItem('isLoggedIn');
-            });
-        });
-    </script>
+        function handleFiles(files) {
+            fileList.innerHTML = '';
+            if (files.length === 0) {
+                fileElem.value = ''; // Limpiar la selección de archivos
+                return;
+            }
+            [...files].forEach(file => {
+                if (file.name.endsWith('.xml')) {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = file.name;
+                    fileList.appendChild(listItem);
+                }
+            });
+        }
+    </script>
 </body>
 </html>

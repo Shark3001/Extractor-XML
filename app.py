@@ -27,8 +27,8 @@ def formatear_fecha(fecha_str):
 
 def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     wb = openpyxl.Workbook()
-    
-    # --- HOJA DETALLADA ---
+
+    # --- HOJA facturas_detalladas ---
     ws_detalladas = wb.active
     ws_detalladas.title = "facturas_detalladas"
     headers_detalladas = [
@@ -39,15 +39,15 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         "Total Venta Neta","Total Impuesto","Total Comprobante","Otros Cargos","Archivo","Tipo de Documento"
     ]
     ws_detalladas.append(headers_detalladas)
-    
-    # --- HOJA RESUMIDA ---
+
+    # --- HOJA facturas_resumidas ---
     ws_resumidas = wb.create_sheet(title="facturas_resumidas")
     headers_resumidas = [
-        "Clave","Consecutivo","Fecha","Nombre Emisor","Número Emisor","Nombre Receptor","Número Receptor",
+        "Clave","Consecutivo","Fecha","Nombre Emisor","Número Emisor","Nombre Receptor",
         "Monto Total","Monto Descuento","Subtotal","Tarifa (%)","Monto Impuesto","Impuesto Neto",
         "Código Moneda","Tipo Cambio","Total Gravado","Total Exento","Total Exonerado",
-        "Total Venta","Total Descuentos","Total Venta Neta","Total Impuesto",
-        "Total Comprobante","Otros Cargos","Archivo","Tipo de Documento"
+        "Total Venta","Total Descuentos","Total Venta Neta","Total Impuesto","Total Comprobante",
+        "Otros Cargos","Archivo","Tipo de Documento","Detalle"
     ]
     ws_resumidas.append(headers_resumidas)
 
@@ -56,13 +56,10 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         try:
             tree = ET.parse(uploaded_file)
             root = tree.getroot()
-
-            # Quitar namespaces
             for elem in root.iter():
                 elem.tag = elem.tag.split('}', 1)[-1]
 
             if root.tag.endswith('FacturaElectronica') or root.tag == 'FacturaElectronica':
-                # Datos comunes
                 clave = root.find('Clave').text if root.find('Clave') is not None else ""
                 consecutivo = root.find('NumeroConsecutivo').text if root.find('NumeroConsecutivo') is not None else ""
                 fecha = formatear_fecha(root.find('FechaEmision').text) if root.find('FechaEmision') is not None else ""
@@ -71,39 +68,30 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                 nombre_receptor = root.find('Receptor/Nombre').text if root.find('Receptor/Nombre') is not None else ""
                 numero_receptor = root.find('Receptor/Identificacion/Numero').text if root.find('Receptor/Identificacion/Numero') is not None else ""
 
-                # Datos de resumen
-                resumen = root.find('ResumenFactura')
-                monto_total = formatear_numero(resumen.find('TotalVenta').text) if resumen is not None and resumen.find('TotalVenta') is not None else ""
-                monto_descuento = formatear_numero(resumen.find('TotalDescuentos').text) if resumen is not None and resumen.find('TotalDescuentos') is not None else ""
-                subtotal = formatear_numero(resumen.find('TotalVentaNeta').text) if resumen is not None and resumen.find('TotalVentaNeta') is not None else ""
-                tarifa = ""
-                monto_impuesto = formatear_numero(resumen.find('TotalImpuesto').text) if resumen is not None and resumen.find('TotalImpuesto') is not None else ""
-                impuesto_neto = ""
+                # --- Datos resumen ---
+                resumen_factura = root.find('ResumenFactura')
+                monto_total = formatear_numero(resumen_factura.find('TotalVenta').text) if resumen_factura is not None and resumen_factura.find('TotalVenta') is not None else ""
+                monto_descuento_resumen = formatear_numero(resumen_factura.find('TotalDescuentos').text) if resumen_factura is not None and resumen_factura.find('TotalDescuentos') is not None else ""
+                subtotal_resumen = formatear_numero(resumen_factura.find('TotalVentaNeta').text) if resumen_factura is not None and resumen_factura.find('TotalVentaNeta') is not None else ""
+                total_impuesto = formatear_numero(resumen_factura.find('TotalImpuesto').text) if resumen_factura is not None and resumen_factura.find('TotalImpuesto') is not None else ""
+                total_comprobante = formatear_numero(resumen_factura.find('TotalComprobante').text) if resumen_factura is not None and resumen_factura.find('TotalComprobante') is not None else ""
+                tarifa_resumen = ""
+                impuesto_neto_resumen = ""
+                otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
                 codigo_moneda = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
                 tipo_cambio = formatear_numero(root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text) if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
-                total_gravado = formatear_numero(resumen.find('TotalGravado').text) if resumen is not None and resumen.find('TotalGravado') is not None else ""
-                total_exento = formatear_numero(resumen.find('TotalExento').text) if resumen is not None and resumen.find('TotalExento') is not None else ""
-                total_exonerado = formatear_numero(resumen.find('TotalExonerado').text) if resumen is not None and resumen.find('TotalExonerado') is not None else ""
-                total_venta = formatear_numero(resumen.find('TotalVenta').text) if resumen is not None and resumen.find('TotalVenta') is not None else ""
-                total_descuentos = formatear_numero(resumen.find('TotalDescuentos').text) if resumen is not None and resumen.find('TotalDescuentos') is not None else ""
-                total_venta_neta = formatear_numero(resumen.find('TotalVentaNeta').text) if resumen is not None and resumen.find('TotalVentaNeta') is not None else ""
-                total_comprobante = formatear_numero(resumen.find('TotalComprobante').text) if resumen is not None and resumen.find('TotalComprobante') is not None else ""
-                otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
+                total_gravado = formatear_numero(root.find('ResumenFactura/TotalGravado').text) if root.find('ResumenFactura/TotalGravado') is not None else ""
+                total_exento = formatear_numero(root.find('ResumenFactura/TotalExento').text) if root.find('ResumenFactura/TotalExento') is not None else ""
+                total_exonerado = formatear_numero(root.find('ResumenFactura/TotalExonerado').text) if root.find('ResumenFactura/TotalExonerado') is not None else ""
+                total_venta = formatear_numero(root.find('ResumenFactura/TotalVenta').text) if root.find('ResumenFactura/TotalVenta') is not None else ""
+                total_descuentos = formatear_numero(root.find('ResumenFactura/TotalDescuentos').text) if root.find('ResumenFactura/TotalDescuentos') is not None else ""
+                total_venta_neta = formatear_numero(root.find('ResumenFactura/TotalVentaNeta').text) if root.find('ResumenFactura/TotalVentaNeta') is not None else ""
 
-                # --- Agregar fila resumida por factura ---
-                fila_resumen = [
-                    clave, consecutivo, fecha, nombre_emisor, numero_emisor, nombre_receptor, numero_receptor,
-                    monto_total, monto_descuento, subtotal, tarifa, monto_impuesto, impuesto_neto,
-                    codigo_moneda, tipo_cambio, total_gravado, total_exento, total_exonerado,
-                    total_venta, total_descuentos, total_venta_neta, monto_impuesto,
-                    total_comprobante, otros_cargos, filename, "Factura Electronica"
-                ]
-                ws_resumidas.append(fila_resumen)
+                detalles_servicio = root.find('DetalleServicio')
+                lineas_detalle = detalles_servicio.findall('LineaDetalle') if detalles_servicio is not None else []
 
-                # --- Agregar filas detalladas por línea ---
-                detalles = root.find('DetalleServicio')
-                lineas = detalles.findall('LineaDetalle') if detalles is not None else []
-                for linea in lineas:
+                # --- facturas_detalladas ---
+                for linea in lineas_detalle:
                     codigo_cabys = linea.find('Codigo').text if linea.find('Codigo') is not None else ""
                     detalle = linea.find('Detalle').text if linea.find('Detalle') is not None else ""
                     cantidad = formatear_numero(linea.find('Cantidad').text) if linea.find('Cantidad') is not None else ""
@@ -116,23 +104,33 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     monto_impuesto_linea = formatear_numero(impuesto.find('Monto').text) if impuesto is not None and impuesto.find('Monto') is not None else "0,00"
                     impuesto_neto_linea = formatear_numero(linea.find('ImpuestoNeto').text) if linea.find('ImpuestoNeto') is not None else ""
 
-                    fila_detalle = [
+                    fila_detallada = [
                         clave, consecutivo, fecha, nombre_emisor, numero_emisor, nombre_receptor, numero_receptor,
                         codigo_cabys, detalle, cantidad, precio_unitario, monto_total_linea, monto_descuento_linea, subtotal_linea,
                         tarifa_linea, monto_impuesto_linea, impuesto_neto_linea, codigo_moneda, tipo_cambio,
                         total_gravado, total_exento, total_exonerado, total_venta, total_descuentos,
-                        total_venta_neta, monto_impuesto, total_comprobante, otros_cargos, filename, "Factura Electronica"
+                        total_venta_neta, total_impuesto, total_comprobante, otros_cargos, filename, "Factura Electronica"
                     ]
-                    ws_detalladas.append(fila_detalle)
+                    ws_detalladas.append(fila_detallada)
 
-        except ET.ParseError as e:
-            flash(f"Error al parsear '{filename}': {e}", 'error')
+                # --- facturas_resumidas ---
+                for linea in lineas_detalle:
+                    detalle = linea.find('Detalle').text if linea.find('Detalle') is not None else ""
+                    fila_resumen = [
+                        clave, consecutivo, fecha, nombre_emisor, numero_emisor, numero_receptor,
+                        monto_total, monto_descuento_resumen, subtotal_resumen, tarifa_resumen, total_impuesto, impuesto_neto_resumen,
+                        codigo_moneda, tipo_cambio, total_gravado, total_exento, total_exonerado,
+                        total_venta, total_descuentos, total_venta_neta, total_impuesto, total_comprobante,
+                        otros_cargos, filename, "Factura Electronica", detalle
+                    ]
+                    ws_resumidas.append(fila_resumen)
+
         except Exception as e:
             flash(f"Error al procesar '{filename}': {e}", 'error')
 
-    # --- FORMATO NUMÉRICO Y COLORES ---
-    for ws, headers in [(ws_detalladas, headers_detalladas), (ws_resumidas, headers_resumidas)]:
-        columnas_numericas = [10,11,12,13,14,15,16,17,19,20,21,22,23,24,25,26,27,28] if ws.title=="facturas_detalladas" else [8,9,10,11,12,13,15,16,17,18,19,20,21,22,23]
+    # --- Formato numérico para ambas hojas ---
+    for ws, columnas_numericas in [(ws_detalladas, [10,11,12,13,14,15,16,17,19,20,21,22,23,24,25,26,27,28]),
+                                   (ws_resumidas, [7,8,9,10,11,12,15,16,17,18,19,20,21,22,23])]:
         for fila in ws.iter_rows(min_row=2):
             for idx_col in columnas_numericas:
                 celda = fila[idx_col - 1]
@@ -143,32 +141,27 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                 except:
                     pass
 
-        # Colores
-        fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
-        fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
-        columnas_a_resaltar = [2,3,9,16,21,24,25,29] if ws.title=="facturas_detalladas" else [2,3,8,11,16,19,20,24]
-        col_num_receptor = 7
-        for col_idx in columnas_a_resaltar:
-            if 0 < col_idx <= ws.max_column:
-                for cell in list(ws.columns)[col_idx - 1]:
-                    cell.fill = fill_celeste
+    # --- Colores facturas_resumidas ---
+    fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
+    fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
+    ws = ws_resumidas
+    columnas_azul = [2,3,25,11,16,20,21,12]  # Consecutivo, Fecha, Detalle, Monto Impuesto, Total Exento, Total Descuentos, Total Venta Neta
+    for col_idx in columnas_azul:
+        for cell in list(ws.columns)[col_idx - 1]:
+            cell.fill = fill_celeste
 
-        # Filas receptor distinto al filtro
-        for fila in ws.iter_rows(min_row=2):
-            if len(fila) >= col_num_receptor:
-                cell = fila[col_num_receptor - 1]
-                if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
-                    for c in fila:
-                        c.fill = fill_rojo
+    # Resaltar Número Receptor
+    for fila in ws.iter_rows(min_row=2):
+        cell = fila[5]  # Número Receptor
+        if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
+            cell.fill = fill_rojo
 
-    # Guardar en memoria
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
     return out
 
-# --------- RUTAS FLASK ---------
-
+# --------- Rutas ---------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':

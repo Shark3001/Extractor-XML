@@ -48,10 +48,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ]
     ws_resumidas.append(headers_resumidas)
 
-    # Limpiar archivos anteriores en memoria
-    xml_files.clear()
-
-    for uploaded_file in request.files.getlist('xml_files'):
+    for uploaded_file in xml_files:
         filename = uploaded_file.filename
         try:
             tree = ET.parse(uploaded_file)
@@ -72,11 +69,11 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             numero_receptor = root.find('Receptor/Identificacion/Numero').text if root.find('Receptor/Identificacion/Numero') is not None else ""
 
             resumen_factura = root.find('ResumenFactura')
-            total_exento = formatear_numero(resumen_factura.find('TotalExento').text) if resumen_factura is not None and resumen_factura.find('TotalExento') is not None else ""
-            total_exonerado = formatear_numero(resumen_factura.find('TotalExonerado').text) if resumen_factura is not None and resumen_factura.find('TotalExonerado') is not None else ""
             total_venta = formatear_numero(resumen_factura.find('TotalVenta').text) if resumen_factura is not None and resumen_factura.find('TotalVenta') is not None else ""
             total_descuentos = formatear_numero(resumen_factura.find('TotalDescuentos').text) if resumen_factura is not None and resumen_factura.find('TotalDescuentos') is not None else ""
             total_venta_neta = formatear_numero(resumen_factura.find('TotalVentaNeta').text) if resumen_factura is not None and resumen_factura.find('TotalVentaNeta') is not None else ""
+            total_exento = formatear_numero(resumen_factura.find('TotalExento').text) if resumen_factura is not None and resumen_factura.find('TotalExento') is not None else ""
+            total_exonerado = formatear_numero(resumen_factura.find('TotalExonerado').text) if resumen_factura is not None and resumen_factura.find('TotalExonerado') is not None else ""
             total_impuesto = formatear_numero(resumen_factura.find('TotalImpuesto').text) if resumen_factura is not None and resumen_factura.find('TotalImpuesto') is not None else ""
             total_comprobante = formatear_numero(resumen_factura.find('TotalComprobante').text) if resumen_factura is not None and resumen_factura.find('TotalComprobante') is not None else ""
             otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
@@ -104,7 +101,6 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     codigo_moneda = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
                     tipo_cambio = formatear_numero(root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text) if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
                     total_gravado = formatear_numero(root.find('ResumenFactura/TotalGravado').text) if root.find('ResumenFactura/TotalGravado') is not None else ""
-                    total_exonerado = total_exonerado
                     total_comprobante_linea = total_comprobante
                     otros_cargos_linea = otros_cargos
 
@@ -140,7 +136,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             cell.fill = fill_rojo
 
     # --- Formato colores facturas_resumidas ---
-    col_azul_res = [2,3,12,11,7,8,9,15]  # Ajusta columnas azules según tu preferencia
+    col_azul_res = [2,3,12,10,11,8,9,13]
     for col_idx in col_azul_res:
         for cell in list(ws_resumidas.columns)[col_idx-1]:
             cell.fill = fill_celeste
@@ -153,6 +149,8 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     wb.save(out)
     out.seek(0)
 
+    # Limpiar archivos en memoria para que al volver a generar Excel solo cargue los nuevos XML
+    xml_files.clear()
     return out
 
 # --------- Rutas ---------

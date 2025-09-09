@@ -18,7 +18,7 @@
         }
         .container {
             max-width: 800px;
-            width: 90%; /* Ancho responsivo */
+            width: 90%;
             background-color: #fff;
             padding: 30px;
             border-radius: 8px;
@@ -30,7 +30,7 @@
             text-align: center;
             margin-bottom: 30px;
         }
-        /* Estilos para el área de arrastrar y soltar */
+        /* Área de arrastrar y soltar */
         .drag-area {
             border: 2px dashed #ccc;
             border-radius: 5px;
@@ -47,16 +47,16 @@
             border-color: #007bff;
         }
         input[type="file"] {
-            display: none; /* Ocultar el input de archivo por defecto */
+            display: none;
         }
-        /* Estilos para la lista de archivos seleccionados */
+        /* Lista de archivos */
         .file-list {
             margin-top: 20px;
             border: 1px solid #eee;
             padding: 10px;
             border-radius: 5px;
             min-height: 50px;
-            max-height: 200px; /* Limita la altura y añade scroll si hay muchos archivos */
+            max-height: 200px;
             overflow-y: auto;
             background-color: #f9f9f9;
         }
@@ -65,7 +65,7 @@
             font-size: 0.9em;
             color: #555;
         }
-        /* Estilos para etiquetas y campos de texto */
+        /* Etiquetas y campos de texto */
         label {
             display: block;
             margin-top: 20px;
@@ -75,13 +75,13 @@
         input[type="text"] {
             width: 100%;
             padding: 10px;
-            box-sizing: border-box; /* Incluye padding y border en el ancho */
+            box-sizing: border-box;
             margin-bottom: 20px;
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 1em;
         }
-        /* Estilos para el botón de envío */
+        /* Botones */
         button {
             display: block;
             width: 100%;
@@ -93,11 +93,12 @@
             font-size: 1.1em;
             cursor: pointer;
             transition: background-color 0.3s ease;
+            margin-top: 10px;
         }
         button:hover {
             background-color: #0056b3;
         }
-        /* Estilos para los mensajes flash (errores/éxito) */
+        /* Mensajes flash */
         .flash-messages {
             margin-bottom: 20px;
             padding: 10px;
@@ -121,17 +122,16 @@
         .flash-messages li {
             margin-bottom: 5px;
         }
-        /* Estilo para el logo de texto "afc" */
         .afc-logo {
-            font-size: 2.5em; /* Tamaño de la fuente */
-            font-weight: bold; /* Negrita */
-            color: #ff0009; /* COLOR */
-            text-align: center; /* Centrar el texto */
-            padding-bottom: 5px; /* Espacio entre el texto y el subrayado */
-            border-bottom: 3px solid #ff0009; /* COLOR */
-            display: block; /* Para que ocupe su propia línea y se centre */
-            margin: 0 auto 30px auto; /* Centrar horizontalmente y añadir margen inferior */
-            width: fit-content; /* El ancho se ajusta al contenido del texto */
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #ff0009;
+            text-align: center;
+            padding-bottom: 5px;
+            border-bottom: 3px solid #ff0009;
+            display: block;
+            margin: 0 auto 30px auto;
+            width: fit-content;
         }
         .logout-link {
             position: absolute;
@@ -153,7 +153,6 @@
 
         <h1>Extractor de XML a Excel</h1>
 
-        {# Sección para mostrar mensajes flash de Flask (ej. errores) #}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             <div class="flash-messages {{ messages[0][0] }}">
@@ -178,10 +177,11 @@
             <div class="file-list" id="fileList">
                 <p>Archivos seleccionados: Ninguno</p>
             </div>
+            
             <button type="submit">Generar Excel</button>
+            <button type="button" id="clearFilesButton" style="background-color:#dc3545;">Limpiar Archivos</button>
         </form>
 
-        <!-- Mensaje de desarrollo -->
         <p style="text-align:center; margin-top:20px; font-size:0.9em; color:#555;">
             Desarrollado por 
             <a href="mailto:jordyam30@gmail.com" style="color:#007bff; text-decoration: none;">
@@ -194,9 +194,9 @@
         const dragDropArea = document.getElementById('dragDropArea');
         const fileInput = document.getElementById('xml_files');
         const fileList = document.getElementById('fileList');
-        let selectedFiles = []; // Almacenará los archivos que el usuario arrastre o seleccione
+        const clearButton = document.getElementById('clearFilesButton');
+        let selectedFiles = [];
 
-        // Evitar el comportamiento por defecto del navegador para arrastrar y soltar
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             dragDropArea.addEventListener(eventName, preventDefaults, false);
             document.body.addEventListener(eventName, preventDefaults, false);
@@ -207,7 +207,6 @@
             e.stopPropagation();
         }
 
-        // Resaltar el área de arrastrar y soltar
         ['dragenter', 'dragover'].forEach(eventName => {
             dragDropArea.addEventListener(eventName, highlight, false);
         });
@@ -217,7 +216,6 @@
         function highlight(e) { dragDropArea.classList.add('highlight'); }
         function unhighlight(e) { dragDropArea.classList.remove('highlight'); }
 
-        // Manejar los archivos cuando se sueltan en el área
         dragDropArea.addEventListener('drop', handleDrop, false);
         function handleDrop(e) {
             const dt = e.dataTransfer;
@@ -225,12 +223,10 @@
             handleFiles(files);
         }
 
-        // Manejar archivos seleccionados por input
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
         });
 
-        // Permite hacer clic en el área de arrastrar para abrir selector
         dragDropArea.addEventListener('click', () => {
             fileInput.click();
         });
@@ -253,12 +249,18 @@
             }
         }
 
-        // Asignar los archivos seleccionados al input para envío con form
         function assignFilesToFileInput(filesArray){
             const dataTransfer = new DataTransfer();
             filesArray.forEach(file => dataTransfer.items.add(file));
             fileInput.files = dataTransfer.files;
         }
+
+        // Botón para limpiar archivos
+        clearButton.addEventListener('click', () => {
+            selectedFiles = [];
+            updateFileList();
+            assignFilesToFileInput([]);
+        });
     </script>
 </body>
 </html>

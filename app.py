@@ -11,6 +11,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY_APP_XML", "CAMBIA_ESTA_CLAVE_EN_RENDER")
 CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")
 
+# --- Funciones de conversión ---
 def formatear_numero(valor):
     if valor is None:
         return ""
@@ -23,6 +24,20 @@ def formatear_fecha(fecha_str):
         except ValueError:
             return fecha_str
     return ""
+
+def convertir_numero(valor):
+    if valor is None or valor == "":
+        return 0
+    # Reemplaza comas por punto para float
+    return float(str(valor).replace(".", "").replace(",", "."))
+
+def convertir_fecha_excel(fecha_str):
+    if fecha_str:
+        try:
+            return datetime.strptime(fecha_str, "%d-%m-%Y")
+        except ValueError:
+            pass
+    return None
 
 def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     wb = openpyxl.Workbook()
@@ -79,22 +94,15 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
 
             detalles_servicio = root.find('DetalleServicio')
+            detalle_texto = ""
+            if detalles_servicio is not None:
+                lineas_detalle = detalles_servicio.findall('LineaDetalle')
+                detalle_texto = "; ".join([linea.find('Detalle').text if linea.find('Detalle') is not None else "" for linea in lineas_detalle])
 
             # --- facturas_detalladas ---
             if detalles_servicio is not None:
                 for linea in detalles_servicio.findall('LineaDetalle'):
-                    # Ajuste: siempre obtener código CABYS
-                    codigo_elem = linea.find('Codigo')
-                    codigo_cabys = ""
-                    if codigo_elem is not None and codigo_elem.text and codigo_elem.text.strip() != "":
-                        codigo_cabys = codigo_elem.text.strip()
-                    else:
-                        # Buscar manualmente <CodigoCABYS> en el XML de la línea
-                        for subelem in linea.iter():
-                            if subelem.tag.lower() == "codigocabys" and subelem.text:
-                                codigo_cabys = subelem.text.strip()
-                                break
-
+                    codigo_cabys = linea.find('Codigo').text if linea.find('Codigo') is not None else ""
                     detalle = linea.find('Detalle').text if linea.find('Detalle') is not None else ""
                     cantidad = formatear_numero(linea.find('Cantidad').text) if linea.find('Cantidad') is not None else ""
                     precio_unitario = formatear_numero(linea.find('PrecioUnitario').text) if linea.find('PrecioUnitario') is not None else ""
@@ -112,19 +120,57 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     otros_cargos_linea = otros_cargos
 
                     fila_detallada = [
-                        clave, consecutivo, fecha, nombre_emisor, numero_emisor, nombre_receptor, numero_receptor,
-                        codigo_cabys, detalle, cantidad, precio_unitario, monto_total_linea, monto_descuento_linea, subtotal_linea,
-                        tarifa_linea, monto_impuesto_linea, impuesto_neto_linea, codigo_moneda, tipo_cambio,
-                        total_gravado, total_exento, total_exonerado, total_venta, total_descuentos,
-                        total_venta_neta, total_impuesto, total_comprobante_linea, otros_cargos_linea, filename, tipo_documento
+                        clave,
+                        consecutivo,
+                        convertir_fecha_excel(fecha),
+                        nombre_emisor,
+                        numero_emisor,
+                        nombre_receptor,
+                        numero_receptor,
+                        codigo_cabys,
+                        detalle,
+                        convertir_numero(cantidad),
+                        convertir_numero(precio_unitario),
+                        convertir_numero(monto_total_linea),
+                        convertir_numero(monto_descuento_linea),
+                        convertir_numero(subtotal_linea),
+                        convertir_numero(tarifa_linea),
+                        convertir_numero(monto_impuesto_linea),
+                        convertir_numero(impuesto_neto_linea),
+                        codigo_moneda,
+                        convertir_numero(tipo_cambio),
+                        convertir_numero(total_gravado),
+                        convertir_numero(total_exento),
+                        convertir_numero(total_exonerado),
+                        convertir_numero(total_venta),
+                        convertir_numero(total_descuentos),
+                        convertir_numero(total_venta_neta),
+                        convertir_numero(total_impuesto),
+                        convertir_numero(total_comprobante_linea),
+                        convertir_numero(otros_cargos_linea),
+                        filename,
+                        tipo_documento
                     ]
                     ws_detalladas.append(fila_detallada)
 
             # --- facturas_resumidas ---
             fila_resumida = [
-                clave, consecutivo, fecha, nombre_emisor, numero_emisor, numero_receptor,
-                total_exento, total_exonerado, total_venta, total_descuentos, total_venta_neta,
-                total_impuesto, total_comprobante, otros_cargos, filename, tipo_documento
+                clave,
+                consecutivo,
+                convertir_fecha_excel(fecha),
+                nombre_emisor,
+                numero_emisor,
+                numero_receptor,
+                convertir_numero(total_exento),
+                convertir_numero(total_exonerado),
+                convertir_numero(total_venta),
+                convertir_numero(total_descuentos),
+                convertir_numero(total_venta_neta),
+                convertir_numero(total_impuesto),
+                convertir_numero(total_comprobante),
+                convertir_numero(otros_cargos),
+                filename,
+                tipo_documento
             ]
             ws_resumidas.append(fila_resumida)
 
@@ -156,7 +202,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     wb.save(out)
     out.seek(0)
 
-    # Limpiar lista de archivos para la siguiente carga
+    # Limpiar archivos en memoria
     xml_files.clear()
     return out
 
@@ -216,4 +262,5 @@ def upload_files():
     )
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
+

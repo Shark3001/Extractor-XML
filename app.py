@@ -8,7 +8,6 @@ from openpyxl.styles import PatternFill
 
 app = Flask(__name__)
 
-# Seguridad desde variables de entorno
 app.secret_key = os.getenv("SECRET_KEY_APP_XML", "CAMBIA_ESTA_CLAVE_EN_RENDER")
 CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")
 
@@ -44,7 +43,8 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ws_resumidas = wb.create_sheet(title="facturas_resumidas")
     headers_resumidas = [
         "Clave","Consecutivo","Fecha","Nombre Emisor","Número Emisor","Número Receptor",
-        "Total Venta","Total Descuentos","Total Venta Neta","Monto Impuesto","Total Exento","Detalle","Archivo","Tipo de Documento"
+        "Total Venta","Total Descuentos","Total Venta Neta","Monto Impuesto","Total Exento","Detalle",
+        "Archivo","Tipo de Documento","Total Impuesto","Total Comprobante","Otros Cargos"
     ]
     ws_resumidas.append(headers_resumidas)
 
@@ -53,13 +53,11 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         try:
             tree = ET.parse(uploaded_file)
             root = tree.getroot()
-            # Eliminar namespaces
             for elem in root.iter():
                 elem.tag = elem.tag.split('}', 1)[-1]
 
-            tipo_documento = root.tag.split(' ')[0]  # Tomar la primera palabra del tag raíz
+            tipo_documento = root.tag.split(' ')[0]
 
-            # --- Si es MensajeHacienda, ignorar completamente ---
             if tipo_documento == "MensajeHacienda":
                 continue
 
@@ -77,6 +75,9 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             total_venta_neta = formatear_numero(resumen_factura.find('TotalVentaNeta').text) if resumen_factura is not None and resumen_factura.find('TotalVentaNeta') is not None else ""
             monto_impuesto = formatear_numero(resumen_factura.find('TotalImpuesto').text) if resumen_factura is not None and resumen_factura.find('TotalImpuesto') is not None else ""
             total_exento = formatear_numero(resumen_factura.find('TotalExento').text) if resumen_factura is not None and resumen_factura.find('TotalExento') is not None else ""
+            total_impuesto = formatear_numero(resumen_factura.find('TotalImpuesto').text) if resumen_factura is not None and resumen_factura.find('TotalImpuesto') is not None else ""
+            total_comprobante = formatear_numero(resumen_factura.find('TotalComprobante').text) if resumen_factura is not None and resumen_factura.find('TotalComprobante') is not None else ""
+            otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
 
             detalles_servicio = root.find('DetalleServicio')
             detalle_texto = ""
@@ -102,15 +103,15 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     tipo_cambio = formatear_numero(root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text) if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
                     total_gravado = formatear_numero(root.find('ResumenFactura/TotalGravado').text) if root.find('ResumenFactura/TotalGravado') is not None else ""
                     total_exonerado = formatear_numero(resumen_factura.find('TotalExonerado').text) if resumen_factura is not None and resumen_factura.find('TotalExonerado') is not None else ""
-                    total_comprobante = formatear_numero(resumen_factura.find('TotalComprobante').text) if resumen_factura is not None and resumen_factura.find('TotalComprobante') is not None else ""
-                    otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
+                    total_comprobante_linea = total_comprobante  # usar mismo valor para cada línea
+                    otros_cargos_linea = otros_cargos
 
                     fila_detallada = [
                         clave, consecutivo, fecha, nombre_emisor, numero_emisor, nombre_receptor, numero_receptor,
                         codigo_cabys, detalle, cantidad, precio_unitario, monto_total_linea, monto_descuento_linea, subtotal_linea,
                         tarifa_linea, monto_impuesto_linea, impuesto_neto_linea, codigo_moneda, tipo_cambio,
                         total_gravado, total_exento, total_exonerado, total_venta, total_descuentos,
-                        total_venta_neta, monto_impuesto_linea, total_comprobante, otros_cargos, filename, tipo_documento
+                        total_venta_neta, total_impuesto, total_comprobante_linea, otros_cargos_linea, filename, tipo_documento
                     ]
                     ws_detalladas.append(fila_detallada)
 
@@ -118,7 +119,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             fila_resumida = [
                 clave, consecutivo, fecha, nombre_emisor, numero_emisor, numero_receptor,
                 total_venta, total_descuentos, total_venta_neta, monto_impuesto, total_exento, detalle_texto,
-                filename, tipo_documento
+                filename, tipo_documento, total_impuesto, total_comprobante, otros_cargos
             ]
             ws_resumidas.append(fila_resumida)
 
@@ -149,6 +150,9 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
+
+    # Limpiar archivos en memoria
+    xml_files.clear()
     return out
 
 # --------- Rutas ---------
@@ -198,7 +202,6 @@ def upload_files():
         return redirect(url_for('index'))
 
     excel_stream = extraer_datos_xml_en_memoria(files, numero_receptor)
-    files.clear()  # limpiar archivos en memoria
 
     return send_file(
         excel_stream,

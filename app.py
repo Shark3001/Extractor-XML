@@ -83,13 +83,17 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             # --- facturas_detalladas ---
             if detalles_servicio is not None:
                 for linea in detalles_servicio.findall('LineaDetalle'):
-                    # Jalar CódigoCABYS correctamente
-                    codigo_cabys_tag = linea.find('CodigoCABYS')
-                    codigo_cabys = codigo_cabys_tag.text if codigo_cabys_tag is not None else ""
-                    if not codigo_cabys:
-                        # fallback: intenta con 'Codigo'
-                        codigo_cabys_tag = linea.find('Codigo')
-                        codigo_cabys = codigo_cabys_tag.text if codigo_cabys_tag is not None else ""
+                    # Ajuste: siempre obtener código CABYS
+                    codigo_elem = linea.find('Codigo')
+                    codigo_cabys = ""
+                    if codigo_elem is not None and codigo_elem.text and codigo_elem.text.strip() != "":
+                        codigo_cabys = codigo_elem.text.strip()
+                    else:
+                        # Buscar manualmente <CodigoCABYS> en el XML de la línea
+                        for subelem in linea.iter():
+                            if subelem.tag.lower() == "codigocabys" and subelem.text:
+                                codigo_cabys = subelem.text.strip()
+                                break
 
                     detalle = linea.find('Detalle').text if linea.find('Detalle') is not None else ""
                     cantidad = formatear_numero(linea.find('Cantidad').text) if linea.find('Cantidad') is not None else ""
@@ -148,14 +152,12 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
             cell.fill = fill_rojo
 
-    # --- Guardar en BytesIO ---
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
 
-    # --- Limpiar archivos cargados ---
+    # Limpiar lista de archivos para la siguiente carga
     xml_files.clear()
-
     return out
 
 # --------- Rutas ---------
@@ -214,4 +216,4 @@ def upload_files():
     )
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)

@@ -15,7 +15,15 @@ CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")
 def formatear_numero(valor):
     if valor is None:
         return ""
-    return str(valor).replace(".", ",")
+    # Aseguramos dos decimales para formato de presentación
+    try:
+        # Se asegura que si es un número, se muestre con dos decimales usando la coma como separador de decimales.
+        if isinstance(valor, (int, float)):
+            return f"{valor:.2f}".replace('.', ',')
+        return str(valor).replace(".", ",")
+    except:
+        return str(valor).replace(".", ",")
+
 
 def formatear_fecha(fecha_str):
     if fecha_str:
@@ -28,8 +36,28 @@ def formatear_fecha(fecha_str):
 def convertir_numero(valor):
     if valor is None or valor == "":
         return 0
-    # Reemplaza comas por punto para float
-    return float(str(valor).replace(".", "").replace(",", "."))
+    
+    s_valor = str(valor)
+    
+    # Nuevo enfoque estricto para evitar la multiplicación por error de formato:
+    
+    # Si detectamos una coma (',') y un punto ('.') en la cadena:
+    if ',' in s_valor and '.' in s_valor:
+        # Asumimos formato europeo: punto es miles, coma es decimal.
+        # Ejemplo: 50.731,71  ->  50731.71
+        s_valor = s_valor.replace(".", "")
+        s_valor = s_valor.replace(",", ".")
+    elif ',' in s_valor:
+        # Asumimos formato donde solo la coma es decimal y no hay separador de miles (o es espacio).
+        # Ejemplo: 50731,71 -> 50731.71
+        s_valor = s_valor.replace(",", ".")
+    
+    # Si solo hay punto, lo dejamos como está, asumiendo formato americano (50731.71)
+    
+    try:
+        return float(s_valor)
+    except ValueError:
+        return 0
 
 def convertir_fecha_excel(fecha_str):
     if fecha_str:
@@ -56,10 +84,18 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
 
     # --- HOJA facturas_resumidas ---
     ws_resumidas = wb.create_sheet(title="facturas_resumidas")
+    # ENCABEZADOS DE HOJA RESUMIDA
     headers_resumidas = [
-        "Clave","Consecutivo","Fecha","Nombre Emisor","Número Emisor","Número Receptor",
-        "Total Exento","Total Exonerado","Total Venta","Total Descuentos","Total Venta Neta",
-        "Total Impuesto","Total Comprobante","Otros Cargos","Archivo","Tipo de Documento"
+        "Consecutivo",
+        "Detalle",
+        "Fecha",
+        "Código Moneda",
+        "Subtotal",
+        "Total Descuentos",
+        "Total Impuesto",
+        "Otros Cargos",
+        "Número Receptor",
+        "Total Comprobante"  # COLUMNA AL FINAL
     ]
     ws_resumidas.append(headers_resumidas)
 
@@ -92,12 +128,21 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             total_impuesto = formatear_numero(resumen_factura.find('TotalImpuesto').text) if resumen_factura is not None and resumen_factura.find('TotalImpuesto') is not None else ""
             total_comprobante = formatear_numero(resumen_factura.find('TotalComprobante').text) if resumen_factura is not None and resumen_factura.find('TotalComprobante') is not None else ""
             otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
-
+            codigo_moneda = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
+            
             detalles_servicio = root.find('DetalleServicio')
             detalle_texto = ""
+            subtotal_factura = 0 # Inicializar o resetear el subtotal
+
             if detalles_servicio is not None:
                 lineas_detalle = detalles_servicio.findall('LineaDetalle')
+                # LÓGICA DE CONCATENACIÓN DE DETALLE
                 detalle_texto = "; ".join([linea.find('Detalle').text if linea.find('Detalle') is not None else "" for linea in lineas_detalle])
+                
+                # CÁLCULO DEL SUBTOTAL: Suma de SubTotales de líneas 
+                for linea in lineas_detalle:
+                    subtotal_linea_str = linea.find('SubTotal').text if linea.find('SubTotal') is not None else "0"
+                    subtotal_factura += convertir_numero(subtotal_linea_str)
 
             # --- facturas_detalladas ---
             if detalles_servicio is not None:
@@ -113,7 +158,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     tarifa_linea = formatear_numero(impuesto.find('Tarifa').text) if impuesto is not None and impuesto.find('Tarifa') is not None else "0,00"
                     monto_impuesto_linea = formatear_numero(impuesto.find('Monto').text) if impuesto is not None and impuesto.find('Monto') is not None else "0,00"
                     impuesto_neto_linea = formatear_numero(linea.find('ImpuestoNeto').text) if linea.find('ImpuestoNeto') is not None else ""
-                    codigo_moneda = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
+                    codigo_moneda_linea = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
                     tipo_cambio = formatear_numero(root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text) if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
                     total_gravado = formatear_numero(root.find('ResumenFactura/TotalGravado').text) if root.find('ResumenFactura/TotalGravado') is not None else ""
                     total_comprobante_linea = total_comprobante
@@ -137,7 +182,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                         convertir_numero(tarifa_linea),
                         convertir_numero(monto_impuesto_linea),
                         convertir_numero(impuesto_neto_linea),
-                        codigo_moneda,
+                        codigo_moneda_linea,
                         convertir_numero(tipo_cambio),
                         convertir_numero(total_gravado),
                         convertir_numero(total_exento),
@@ -154,23 +199,18 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     ws_detalladas.append(fila_detallada)
 
             # --- facturas_resumidas ---
+            # Se inserta el float puro que contiene la suma correcta.
             fila_resumida = [
-                clave,
                 consecutivo,
+                detalle_texto,
                 convertir_fecha_excel(fecha),
-                nombre_emisor,
-                numero_emisor,
-                numero_receptor,
-                convertir_numero(total_exento),
-                convertir_numero(total_exonerado),
-                convertir_numero(total_venta),
+                codigo_moneda,
+                subtotal_factura, 
                 convertir_numero(total_descuentos),
-                convertir_numero(total_venta_neta),
                 convertir_numero(total_impuesto),
-                convertir_numero(total_comprobante),
                 convertir_numero(otros_cargos),
-                filename,
-                tipo_documento
+                numero_receptor,
+                convertir_numero(total_comprobante) 
             ]
             ws_resumidas.append(fila_resumida)
 
@@ -180,23 +220,55 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     # --- Formato colores facturas_detalladas ---
     fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
     fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
+    # Columnas azules en hoja detallada: B, C, I, P, V, X, Y, AC
     col_azul = ["B","C","I","P","V","X","Y","AC"]
     for col in col_azul:
         for cell in ws_detalladas[col]:
             cell.fill = fill_celeste
+    # Columna roja en hoja detallada (Número Receptor): G
     for cell in ws_detalladas["G"][1:]:
         if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
             cell.fill = fill_rojo
 
     # --- Formato colores facturas_resumidas ---
-    col_azul_res = [2,3,12,10,11,8,9,13]
-    for col_idx in col_azul_res:
-        for cell in list(ws_resumidas.columns)[col_idx-1]:
+    
+    # 📌 AJUSTE CRÍTICO: Se eliminan todas las columnas de la lista de relleno azul para dejar solo el formato de color rojo.
+    
+    # Indices 0-based de las columnas que DEBEN seguir azules: ¡NINGUNA!
+    col_indices_azules_resumidas = [] 
+    
+    # Aplicar color azul a las columnas seleccionadas (esta parte ya no hace nada)
+    for col_idx in col_indices_azules_resumidas:
+        for cell in list(ws_resumidas.columns)[col_idx]: 
             cell.fill = fill_celeste
+            
+    # La columna "Número Receptor" es la 9 (índice 8). Solo se aplica rojo o se deja sin relleno.
     for fila in ws_resumidas.iter_rows(min_row=2):
-        cell = fila[5]
-        if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
-            cell.fill = fill_rojo
+        cell_receptor = fila[8] # Columna 9 (Índice 8)
+        
+        # Primero aseguramos que todas las demás celdas de la fila no tengan relleno (blanco)
+        # Recorremos la fila para eliminar cualquier relleno residual si no fue manejado por la lista de índices vacía.
+        for i, cell in enumerate(fila):
+            # Solo aplicamos el relleno vacío si no es la celda del Número Receptor
+            if i != 8:
+                cell.fill = PatternFill(fill_type=None)
+            
+        # Aplicamos el color rojo (si aplica) o el relleno vacío
+        if cell_receptor.value and numero_receptor_filtro and str(cell_receptor.value) != str(numero_receptor_filtro):
+            cell_receptor.fill = fill_rojo
+        else:
+            cell_receptor.fill = PatternFill(fill_type=None)
+        
+        # APLICACIÓN DE FORMATO NUMÉRICO EXPLICITO
+        # Índices de columnas de monto (0-based):
+        # 4: Subtotal, 5: T. Descuentos, 6: T. Impuesto, 7: Otros Cargos, 9: T. Comprobante
+        column_indices_to_format = [4, 5, 6, 7, 9] 
+        for col_index_to_format in column_indices_to_format:
+            cell_to_format = fila[col_index_to_format]
+            if isinstance(cell_to_format.value, (int, float)):
+                # Este formato es el que asegura la visualización de los dos decimales
+                cell_to_format.number_format = '#,##0.00' 
+
 
     out = io.BytesIO()
     wb.save(out)

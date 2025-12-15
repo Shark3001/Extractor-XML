@@ -8,6 +8,7 @@ from openpyxl.styles import PatternFill
 
 app = Flask(__name__)
 
+# Configuración
 app.secret_key = os.getenv("SECRET_KEY_APP_XML", "CAMBIA_ESTA_CLAVE_EN_RENDER")
 CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")
 
@@ -38,8 +39,6 @@ def convertir_numero(valor):
         return 0
     
     s_valor = str(valor)
-    
-    # Nuevo enfoque estricto para evitar la multiplicación por error de formato:
     
     # Si detectamos una coma (',') y un punto ('.') en la cadena:
     if ',' in s_valor and '.' in s_valor:
@@ -82,20 +81,20 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ]
     ws_detalladas.append(headers_detalladas)
 
-    # --- HOJA facturas_resumidas ---
+    # --- HOJA facturas_resumidas (ENCABEZADOS MODIFICADOS) ---
     ws_resumidas = wb.create_sheet(title="facturas_resumidas")
-    # ENCABEZADOS DE HOJA RESUMIDA
     headers_resumidas = [
-        "Consecutivo",
-        "Detalle",
-        "Fecha",
-        "Código Moneda",
-        "Subtotal",
-        "Total Descuentos",
-        "Total Impuesto",
-        "Otros Cargos",
-        "Número Receptor",
-        "Total Comprobante"  # COLUMNA AL FINAL
+        "Consecutivo",      # A
+        "Detalle",          # B
+        "Fecha",            # C
+        "Código Moneda",    # D
+        "Subtotal",         # E
+        "Total Descuentos", # F
+        "Total Impuesto",   # G
+        "Otros Cargos",     # H
+        "Total Comprobante",# I (Antes J)
+        "Número Receptor",  # J (Antes I)
+        "Número Emisor"     # K (Nuevo)
     ]
     ws_resumidas.append(headers_resumidas)
 
@@ -119,17 +118,14 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             nombre_receptor = root.find('Receptor/Nombre').text if root.find('Receptor/Nombre') is not None else ""
             numero_receptor = root.find('Receptor/Identificacion/Numero').text if root.find('Receptor/Identificacion/Numero') is not None else ""
             
-            # 📌 INICIO DE CAMBIO: Obtener fecha corta (dd-mm-yy)
+            # Obtener fecha corta (dd-mm-yy)
             fecha_dd_mm_yy = ""
             if fecha and fecha != "":
                 try:
-                    # Convertir 'dd-mm-YYYY' string (generado por formatear_fecha) a datetime object
                     dt_object = datetime.strptime(fecha, '%d-%m-%Y') 
-                    # Formatear a 'dd-mm-yy'
                     fecha_dd_mm_yy = dt_object.strftime('%d-%m-%y')
                 except ValueError:
                     fecha_dd_mm_yy = fecha # Fallback si el formato es inesperado
-            # 📌 FIN DE CAMBIO
 
             resumen_factura = root.find('ResumenFactura')
             total_venta = formatear_numero(resumen_factura.find('TotalVenta').text) if resumen_factura is not None and resumen_factura.find('TotalVenta') is not None else ""
@@ -143,16 +139,16 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             codigo_moneda = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
             
             detalles_servicio = root.find('DetalleServicio')
-            detalle_texto = "" # Esta será la cadena final concatenada
+            detalle_texto = "" # Esta será la cadena final concatenada para el resumen
             subtotal_factura = 0 # Inicializar o resetear el subtotal
 
             if detalles_servicio is not None:
                 lineas_detalle = detalles_servicio.findall('LineaDetalle')
                 
-                # LÓGICA DE CONCATENACIÓN DE DETALLE DE LÍNEAS EXISTENTE
+                # LÓGICA DE CONCATENACIÓN DE DETALLE DE LÍNEAS
                 detalle_texto_lineas = "; ".join([linea.find('Detalle').text if linea.find('Detalle') is not None else "" for linea in lineas_detalle])
                 
-                # 📌 CONCATENACIÓN FINAL REQUERIDA: Fecha corta + Nombre Emisor + Detalles de líneas
+                # CONCATENACIÓN FINAL REQUERIDA: Fecha corta + Nombre Emisor + Detalles de líneas
                 detalle_texto = f"{fecha_dd_mm_yy} - {nombre_emisor} - {detalle_texto_lineas}"
                 
                 # CÁLCULO DEL SUBTOTAL: Suma de SubTotales de líneas 
@@ -160,14 +156,14 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     subtotal_linea_str = linea.find('SubTotal').text if linea.find('SubTotal') is not None else "0"
                     subtotal_factura += convertir_numero(subtotal_linea_str)
             else:
-                # 📌 CONCATENACIÓN FINAL si no hay detalles de línea
+                # CONCATENACIÓN FINAL si no hay detalles de línea
                 detalle_texto = f"{fecha_dd_mm_yy} - {nombre_emisor} - (Sin detalles)"
 
 
             # --- facturas_detalladas ---
+            # (Lógica de llenado de facturas_detalladas sin cambios, usa los mismos datos)
             if detalles_servicio is not None:
                 for linea in detalles_servicio.findall('LineaDetalle'):
-                    # ... (El resto del código de facturas_detalladas no cambia)
                     codigo_cabys = linea.find('Codigo').text if linea.find('Codigo') is not None else ""
                     detalle = linea.find('Detalle').text if linea.find('Detalle') is not None else ""
                     cantidad = formatear_numero(linea.find('Cantidad').text) if linea.find('Cantidad') is not None else ""
@@ -186,52 +182,34 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     otros_cargos_linea = otros_cargos
 
                     fila_detallada = [
-                        clave,
-                        consecutivo,
-                        convertir_fecha_excel(fecha),
-                        nombre_emisor,
-                        numero_emisor,
-                        nombre_receptor,
-                        numero_receptor,
-                        codigo_cabys,
-                        detalle,
-                        convertir_numero(cantidad),
-                        convertir_numero(precio_unitario),
-                        convertir_numero(monto_total_linea),
-                        convertir_numero(monto_descuento_linea),
-                        convertir_numero(subtotal_linea),
-                        convertir_numero(tarifa_linea),
-                        convertir_numero(monto_impuesto_linea),
-                        convertir_numero(impuesto_neto_linea),
-                        codigo_moneda_linea,
-                        convertir_numero(tipo_cambio),
-                        convertir_numero(total_gravado),
-                        convertir_numero(total_exento),
-                        convertir_numero(total_exonerado),
-                        convertir_numero(total_venta),
-                        convertir_numero(total_descuentos),
-                        convertir_numero(total_venta_neta),
-                        convertir_numero(total_impuesto),
-                        convertir_numero(total_comprobante_linea),
-                        convertir_numero(otros_cargos_linea),
-                        filename,
-                        tipo_documento
+                        clave, consecutivo, convertir_fecha_excel(fecha), nombre_emisor,
+                        numero_emisor, nombre_receptor, numero_receptor, codigo_cabys,
+                        detalle, convertir_numero(cantidad), convertir_numero(precio_unitario),
+                        convertir_numero(monto_total_linea), convertir_numero(monto_descuento_linea),
+                        convertir_numero(subtotal_linea), convertir_numero(tarifa_linea),
+                        convertir_numero(monto_impuesto_linea), convertir_numero(impuesto_neto_linea),
+                        codigo_moneda_linea, convertir_numero(tipo_cambio), convertir_numero(total_gravado),
+                        convertir_numero(total_exento), convertir_numero(total_exonerado),
+                        convertir_numero(total_venta), convertir_numero(total_descuentos),
+                        convertir_numero(total_venta_neta), convertir_numero(total_impuesto),
+                        convertir_numero(total_comprobante_linea), convertir_numero(otros_cargos_linea),
+                        filename, tipo_documento
                     ]
                     ws_detalladas.append(fila_detallada)
 
-            # --- facturas_resumidas ---
-            # Se utiliza el nuevo 'detalle_texto' concatenado
+            # --- facturas_resumidas (FILA CON NUEVO ORDEN Y COLUMNA) ---
             fila_resumida = [
-                consecutivo,
-                detalle_texto, 
-                convertir_fecha_excel(fecha),
-                codigo_moneda,
-                subtotal_factura, 
-                convertir_numero(total_descuentos),
-                convertir_numero(total_impuesto),
-                convertir_numero(otros_cargos),
-                numero_receptor,
-                convertir_numero(total_comprobante) 
+                consecutivo,                            # A
+                detalle_texto,                          # B
+                convertir_fecha_excel(fecha),           # C
+                codigo_moneda,                          # D
+                subtotal_factura,                       # E
+                convertir_numero(total_descuentos),     # F
+                convertir_numero(total_impuesto),       # G
+                convertir_numero(otros_cargos),         # H
+                convertir_numero(total_comprobante),    # I (Total Comprobante)
+                numero_receptor,                        # J (Número Receptor)
+                numero_emisor                           # K (Número Emisor - Nuevo)
             ]
             ws_resumidas.append(fila_resumida)
 
@@ -251,19 +229,18 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
             cell.fill = fill_rojo
 
-    # --- Formato colores facturas_resumidas ---
+    # --- Formato colores facturas_resumidas (ÍNDICES AJUSTADOS) ---
     
-    # Aseguramos que solo se aplique el color rojo si no coincide el filtro.
     for fila in ws_resumidas.iter_rows(min_row=2):
-        cell_receptor = fila[8] # Columna 9 (Índice 8)
+        # Número Receptor es el índice 9 (columna J)
+        cell_receptor = fila[9] 
         
-        # Eliminar cualquier relleno residual en toda la fila (incluyendo Detalle, Código Moneda, T. Descuentos)
+        # Eliminamos rellenos residuales
         for i, cell in enumerate(fila):
-            # Solo aplicamos el relleno vacío si no es la celda del Número Receptor
-            if i != 8:
+            if i != 9:
                 cell.fill = PatternFill(fill_type=None)
             
-        # Aplicamos el color rojo (si aplica) o el relleno vacío
+        # Aplicamos el color rojo al Número Receptor si no coincide con el filtro
         if cell_receptor.value and numero_receptor_filtro and str(cell_receptor.value) != str(numero_receptor_filtro):
             cell_receptor.fill = fill_rojo
         else:
@@ -271,14 +248,12 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         
         # APLICACIÓN DE FORMATO NUMÉRICO EXPLICITO
         # Índices de columnas de monto (0-based):
-        # 4: Subtotal, 5: T. Descuentos, 6: T. Impuesto, 7: Otros Cargos, 9: T. Comprobante
-        column_indices_to_format = [4, 5, 6, 7, 9] 
+        # 4: Subtotal (E), 5: T. Descuentos (F), 6: T. Impuesto (G), 7: Otros Cargos (H), 8: T. Comprobante (I)
+        column_indices_to_format = [4, 5, 6, 7, 8] 
         for col_index_to_format in column_indices_to_format:
             cell_to_format = fila[col_index_to_format]
             if isinstance(cell_to_format.value, (int, float)):
-                # Este formato es el que asegura la visualización de los dos decimales
                 cell_to_format.number_format = '#,##0.00' 
-
 
     out = io.BytesIO()
     wb.save(out)
@@ -344,4 +319,5 @@ def upload_files():
     )
 
 if __name__ == '__main__':
+    # Nota: para producción, usa un servidor WSGI y configura SECRET_KEY_APP_XML y APP_PASSWORD en el entorno.
     app.run(debug=False)

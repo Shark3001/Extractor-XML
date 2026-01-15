@@ -81,20 +81,21 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     ]
     ws_detalladas.append(headers_detalladas)
 
-    # --- HOJA facturas_resumidas (ENCABEZADOS MODIFICADOS) ---
+    # --- HOJA facturas_resumidas ---
     ws_resumidas = wb.create_sheet(title="facturas_resumidas")
     headers_resumidas = [
         "Consecutivo",      # A
         "Detalle",          # B
         "Fecha",            # C
         "Código Moneda",    # D
-        "Subtotal",         # E
+        "Subtotal",          # E
         "Total Descuentos", # F
         "Total Impuesto",   # G
         "Otros Cargos",     # H
-        "Total Comprobante",# I (Antes J)
-        "Número Receptor",  # J (Antes I)
-        "Número Emisor"     # K (Nuevo)
+        "Total Comprobante",# I
+        "Número Receptor",  # J
+        "Número Emisor",    # K
+        "Tipo de cambio"    # L (Agregada al final)
     ]
     ws_resumidas.append(headers_resumidas)
 
@@ -137,6 +138,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             total_comprobante = formatear_numero(resumen_factura.find('TotalComprobante').text) if resumen_factura is not None and resumen_factura.find('TotalComprobante') is not None else ""
             otros_cargos = formatear_numero(root.find('OtrosCargos/MontoCargo').text) if root.find('OtrosCargos/MontoCargo') is not None else "0,00"
             codigo_moneda = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
+            tipo_cambio_valor = root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
             
             detalles_servicio = root.find('DetalleServicio')
             detalle_texto = "" # Esta será la cadena final concatenada para el resumen
@@ -161,7 +163,6 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
 
 
             # --- facturas_detalladas ---
-            # (Lógica de llenado de facturas_detalladas sin cambios, usa los mismos datos)
             if detalles_servicio is not None:
                 for linea in detalles_servicio.findall('LineaDetalle'):
                     codigo_cabys = linea.find('Codigo').text if linea.find('Codigo') is not None else ""
@@ -176,7 +177,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     monto_impuesto_linea = formatear_numero(impuesto.find('Monto').text) if impuesto is not None and impuesto.find('Monto') is not None else "0,00"
                     impuesto_neto_linea = formatear_numero(linea.find('ImpuestoNeto').text) if linea.find('ImpuestoNeto') is not None else ""
                     codigo_moneda_linea = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
-                    tipo_cambio = formatear_numero(root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text) if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
+                    tipo_cambio = formatear_numero(tipo_cambio_valor) if tipo_cambio_valor != "" else ""
                     total_gravado = formatear_numero(root.find('ResumenFactura/TotalGravado').text) if root.find('ResumenFactura/TotalGravado') is not None else ""
                     total_comprobante_linea = total_comprobante
                     otros_cargos_linea = otros_cargos
@@ -197,7 +198,7 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     ]
                     ws_detalladas.append(fila_detallada)
 
-            # --- facturas_resumidas (FILA CON NUEVO ORDEN Y COLUMNA) ---
+            # --- facturas_resumidas (FILA CON COLUMNA TIPO DE CAMBIO AL FINAL) ---
             fila_resumida = [
                 consecutivo,                            # A
                 detalle_texto,                          # B
@@ -207,9 +208,10 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                 convertir_numero(total_descuentos),     # F
                 convertir_numero(total_impuesto),       # G
                 convertir_numero(otros_cargos),         # H
-                convertir_numero(total_comprobante),    # I (Total Comprobante)
-                numero_receptor,                        # J (Número Receptor)
-                numero_emisor                           # K (Número Emisor - Nuevo)
+                convertir_numero(total_comprobante),    # I
+                numero_receptor,                        # J
+                numero_emisor,                          # K
+                convertir_numero(tipo_cambio_valor)     # L (Nuevo)
             ]
             ws_resumidas.append(fila_resumida)
 
@@ -219,47 +221,37 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     # --- Formato colores facturas_detalladas ---
     fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
     fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
-    # Columnas azules en hoja detallada: B, C, I, P, V, X, Y, AC
     col_azul = ["B","C","I","P","V","X","Y","AC"]
     for col in col_azul:
-        for cell in ws_detalladas[col]:
-            cell.fill = fill_celeste
-    # Columna roja en hoja detallada (Número Receptor): G
+        if col in [c.column_letter for c in ws_detalladas[1]]: # Verificación simple de columna
+             for cell in ws_detalladas[col]:
+                cell.fill = fill_celeste
+    
     for cell in ws_detalladas["G"][1:]:
         if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
             cell.fill = fill_rojo
 
-    # --- Formato colores facturas_resumidas (ÍNDICES AJUSTADOS) ---
-    
+    # --- Formato colores facturas_resumidas ---
     for fila in ws_resumidas.iter_rows(min_row=2):
-        # Número Receptor es el índice 9 (columna J)
         cell_receptor = fila[9] 
-        
-        # Eliminamos rellenos residuales
         for i, cell in enumerate(fila):
             if i != 9:
                 cell.fill = PatternFill(fill_type=None)
-            
-        # Aplicamos el color rojo al Número Receptor si no coincide con el filtro
         if cell_receptor.value and numero_receptor_filtro and str(cell_receptor.value) != str(numero_receptor_filtro):
             cell_receptor.fill = fill_rojo
         else:
             cell_receptor.fill = PatternFill(fill_type=None)
         
-        # APLICACIÓN DE FORMATO NUMÉRICO EXPLICITO
-        # Índices de columnas de monto (0-based):
-        # 4: Subtotal (E), 5: T. Descuentos (F), 6: T. Impuesto (G), 7: Otros Cargos (H), 8: T. Comprobante (I)
-        column_indices_to_format = [4, 5, 6, 7, 8] 
-        for col_index_to_format in column_indices_to_format:
-            cell_to_format = fila[col_index_to_format]
+        # APLICACIÓN DE FORMATO NUMÉRICO (Incluyendo nueva columna L en índice 11)
+        column_indices_to_format = [4, 5, 6, 7, 8, 11] 
+        for col_index in column_indices_to_format:
+            cell_to_format = fila[col_index]
             if isinstance(cell_to_format.value, (int, float)):
                 cell_to_format.number_format = '#,##0.00' 
 
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
-
-    # Limpiar archivos en memoria
     xml_files.clear()
     return out
 
@@ -319,5 +311,4 @@ def upload_files():
     )
 
 if __name__ == '__main__':
-    # Nota: para producción, usa un servidor WSGI y configura SECRET_KEY_APP_XML y APP_PASSWORD en el entorno.
     app.run(debug=False)

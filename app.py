@@ -16,15 +16,12 @@ CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")
 def formatear_numero(valor):
     if valor is None:
         return ""
-    # Aseguramos dos decimales para formato de presentación
     try:
-        # Se asegura que si es un número, se muestre con dos decimales usando la coma como separador de decimales.
         if isinstance(valor, (int, float)):
             return f"{valor:.2f}".replace('.', ',')
         return str(valor).replace(".", ",")
     except:
         return str(valor).replace(".", ",")
-
 
 def formatear_fecha(fecha_str):
     if fecha_str:
@@ -40,18 +37,11 @@ def convertir_numero(valor):
     
     s_valor = str(valor)
     
-    # Si detectamos una coma (',') y un punto ('.') en la cadena:
     if ',' in s_valor and '.' in s_valor:
-        # Asumimos formato europeo: punto es miles, coma es decimal.
-        # Ejemplo: 50.731,71  ->  50731.71
         s_valor = s_valor.replace(".", "")
         s_valor = s_valor.replace(",", ".")
     elif ',' in s_valor:
-        # Asumimos formato donde solo la coma es decimal y no hay separador de miles (o es espacio).
-        # Ejemplo: 50731,71 -> 50731.71
         s_valor = s_valor.replace(",", ".")
-    
-    # Si solo hay punto, lo dejamos como está, asumiendo formato americano (50731.71)
     
     try:
         return float(s_valor)
@@ -95,7 +85,8 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         "Total Comprobante",# I
         "Número Receptor",  # J
         "Número Emisor",    # K
-        "Tipo de cambio"    # L (Agregada al final)
+        "Tipo de cambio",   # L
+        "Tipo de Documento" # M (Agregada al final)
     ]
     ws_resumidas.append(headers_resumidas)
 
@@ -119,14 +110,13 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             nombre_receptor = root.find('Receptor/Nombre').text if root.find('Receptor/Nombre') is not None else ""
             numero_receptor = root.find('Receptor/Identificacion/Numero').text if root.find('Receptor/Identificacion/Numero') is not None else ""
             
-            # Obtener fecha corta (dd-mm-yy)
             fecha_dd_mm_yy = ""
             if fecha and fecha != "":
                 try:
                     dt_object = datetime.strptime(fecha, '%d-%m-%Y') 
                     fecha_dd_mm_yy = dt_object.strftime('%d-%m-%y')
                 except ValueError:
-                    fecha_dd_mm_yy = fecha # Fallback si el formato es inesperado
+                    fecha_dd_mm_yy = fecha 
 
             resumen_factura = root.find('ResumenFactura')
             total_venta = formatear_numero(resumen_factura.find('TotalVenta').text) if resumen_factura is not None and resumen_factura.find('TotalVenta') is not None else ""
@@ -141,26 +131,19 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
             tipo_cambio_valor = root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio').text if root.find('ResumenFactura/CodigoTipoMoneda/TipoCambio') is not None else ""
             
             detalles_servicio = root.find('DetalleServicio')
-            detalle_texto = "" # Esta será la cadena final concatenada para el resumen
-            subtotal_factura = 0 # Inicializar o resetear el subtotal
+            detalle_texto = "" 
+            subtotal_factura = 0 
 
             if detalles_servicio is not None:
                 lineas_detalle = detalles_servicio.findall('LineaDetalle')
-                
-                # LÓGICA DE CONCATENACIÓN DE DETALLE DE LÍNEAS
                 detalle_texto_lineas = "; ".join([linea.find('Detalle').text if linea.find('Detalle') is not None else "" for linea in lineas_detalle])
-                
-                # CONCATENACIÓN FINAL REQUERIDA: Fecha corta + Nombre Emisor + Detalles de líneas
                 detalle_texto = f"{fecha_dd_mm_yy} - {nombre_emisor} - {detalle_texto_lineas}"
                 
-                # CÁLCULO DEL SUBTOTAL: Suma de SubTotales de líneas 
                 for linea in lineas_detalle:
                     subtotal_linea_str = linea.find('SubTotal').text if linea.find('SubTotal') is not None else "0"
                     subtotal_factura += convertir_numero(subtotal_linea_str)
             else:
-                # CONCATENACIÓN FINAL si no hay detalles de línea
                 detalle_texto = f"{fecha_dd_mm_yy} - {nombre_emisor} - (Sin detalles)"
-
 
             # --- facturas_detalladas ---
             if detalles_servicio is not None:
@@ -198,32 +181,33 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     ]
                     ws_detalladas.append(fila_detallada)
 
-            # --- facturas_resumidas (FILA CON COLUMNA TIPO DE CAMBIO AL FINAL) ---
+            # --- facturas_resumidas ---
             fila_resumida = [
-                consecutivo,                            # A
-                detalle_texto,                          # B
-                convertir_fecha_excel(fecha),           # C
-                codigo_moneda,                          # D
-                subtotal_factura,                       # E
-                convertir_numero(total_descuentos),     # F
-                convertir_numero(total_impuesto),       # G
-                convertir_numero(otros_cargos),         # H
-                convertir_numero(total_comprobante),    # I
-                numero_receptor,                        # J
-                numero_emisor,                          # K
-                convertir_numero(tipo_cambio_valor)     # L (Nuevo)
+                consecutivo,                                # A
+                detalle_texto,                              # B
+                convertir_fecha_excel(fecha),               # C
+                codigo_moneda,                              # D
+                subtotal_factura,                           # E
+                convertir_numero(total_descuentos),         # F
+                convertir_numero(total_impuesto),           # G
+                convertir_numero(otros_cargos),             # H
+                convertir_numero(total_comprobante),        # I
+                numero_receptor,                            # J
+                numero_emisor,                              # K
+                convertir_numero(tipo_cambio_valor),        # L
+                tipo_documento                              # M (Nueva columna)
             ]
             ws_resumidas.append(fila_resumida)
 
         except Exception as e:
             flash(f"Error al procesar '{filename}': {e}", 'error')
 
-    # --- Formato colores facturas_detalladas ---
+    # --- Formato colores ---
     fill_celeste = PatternFill(start_color="ADD8E6", end_color="ADD8E6", fill_type="solid")
     fill_rojo = PatternFill(start_color="FFAAAA", end_color="FFAAAA", fill_type="solid")
     col_azul = ["B","C","I","P","V","X","Y","AC"]
     for col in col_azul:
-        if col in [c.column_letter for c in ws_detalladas[1]]: # Verificación simple de columna
+        if col in [c.column_letter for c in ws_detalladas[1]]:
              for cell in ws_detalladas[col]:
                 cell.fill = fill_celeste
     
@@ -231,7 +215,6 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         if cell.value and numero_receptor_filtro and str(cell.value) != str(numero_receptor_filtro):
             cell.fill = fill_rojo
 
-    # --- Formato colores facturas_resumidas ---
     for fila in ws_resumidas.iter_rows(min_row=2):
         cell_receptor = fila[9] 
         for i, cell in enumerate(fila):
@@ -242,7 +225,6 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
         else:
             cell_receptor.fill = PatternFill(fill_type=None)
         
-        # APLICACIÓN DE FORMATO NUMÉRICO (Incluyendo nueva columna L en índice 11)
         column_indices_to_format = [4, 5, 6, 7, 8, 11] 
         for col_index in column_indices_to_format:
             cell_to_format = fila[col_index]
@@ -252,10 +234,9 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
-    xml_files.clear()
     return out
 
-# --------- Rutas ---------
+# --- Rutas (Login, Index, Logout, Upload permanecen igual) ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':

@@ -9,6 +9,7 @@ from openpyxl.styles import PatternFill
 app = Flask(__name__)
 
 # Configuración
+# Recuerda configurar SECRET_KEY_APP_XML y APP_PASSWORD en la pestaña 'Environment' de Render
 app.secret_key = os.getenv("SECRET_KEY_APP_XML", "CAMBIA_ESTA_CLAVE_EN_RENDER")
 CORRECT_PASSWORD = os.getenv("APP_PASSWORD", "AFC2024*")
 
@@ -74,19 +75,9 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     # --- HOJA facturas_resumidas ---
     ws_resumidas = wb.create_sheet(title="facturas_resumidas")
     headers_resumidas = [
-        "Consecutivo",      # A
-        "Detalle",          # B
-        "Fecha",            # C
-        "Código Moneda",    # D
-        "Subtotal",          # E
-        "Total Descuentos", # F
-        "Total Impuesto",   # G
-        "Otros Cargos",     # H
-        "Total Comprobante",# I
-        "Número Receptor",  # J
-        "Número Emisor",    # K
-        "Tipo de cambio",   # L
-        "Tipo de Documento" # M (Agregada al final)
+        "Consecutivo", "Detalle", "Fecha", "Código Moneda", "Subtotal", 
+        "Total Descuentos", "Total Impuesto", "Otros Cargos", "Total Comprobante",
+        "Número Receptor", "Número Emisor", "Tipo de cambio", "Tipo de Documento"
     ]
     ws_resumidas.append(headers_resumidas)
 
@@ -159,11 +150,9 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                     tarifa_linea = formatear_numero(impuesto.find('Tarifa').text) if impuesto is not None and impuesto.find('Tarifa') is not None else "0,00"
                     monto_impuesto_linea = formatear_numero(impuesto.find('Monto').text) if impuesto is not None and impuesto.find('Monto') is not None else "0,00"
                     impuesto_neto_linea = formatear_numero(linea.find('ImpuestoNeto').text) if linea.find('ImpuestoNeto') is not None else ""
-                    codigo_moneda_linea = root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda').text if root.find('ResumenFactura/CodigoTipoMoneda/CodigoMoneda') is not None else ""
+                    codigo_moneda_linea = codigo_moneda
                     tipo_cambio = formatear_numero(tipo_cambio_valor) if tipo_cambio_valor != "" else ""
                     total_gravado = formatear_numero(root.find('ResumenFactura/TotalGravado').text) if root.find('ResumenFactura/TotalGravado') is not None else ""
-                    total_comprobante_linea = total_comprobante
-                    otros_cargos_linea = otros_cargos
 
                     fila_detallada = [
                         clave, consecutivo, convertir_fecha_excel(fecha), nombre_emisor,
@@ -176,26 +165,18 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
                         convertir_numero(total_exento), convertir_numero(total_exonerado),
                         convertir_numero(total_venta), convertir_numero(total_descuentos),
                         convertir_numero(total_venta_neta), convertir_numero(total_impuesto),
-                        convertir_numero(total_comprobante_linea), convertir_numero(otros_cargos_linea),
+                        convertir_numero(total_comprobante), convertir_numero(otros_cargos),
                         filename, tipo_documento
                     ]
                     ws_detalladas.append(fila_detallada)
 
             # --- facturas_resumidas ---
             fila_resumida = [
-                consecutivo,                                # A
-                detalle_texto,                              # B
-                convertir_fecha_excel(fecha),               # C
-                codigo_moneda,                              # D
-                subtotal_factura,                           # E
-                convertir_numero(total_descuentos),         # F
-                convertir_numero(total_impuesto),           # G
-                convertir_numero(otros_cargos),             # H
-                convertir_numero(total_comprobante),        # I
-                numero_receptor,                            # J
-                numero_emisor,                              # K
-                convertir_numero(tipo_cambio_valor),        # L
-                tipo_documento                              # M (Nueva columna)
+                consecutivo, detalle_texto, convertir_fecha_excel(fecha), codigo_moneda,
+                subtotal_factura, convertir_numero(total_descuentos), convertir_numero(total_impuesto),
+                convertir_numero(otros_cargos), convertir_numero(total_comprobante),
+                numero_receptor, numero_emisor, convertir_numero(tipo_cambio_valor),
+                tipo_documento
             ]
             ws_resumidas.append(fila_resumida)
 
@@ -217,13 +198,8 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
 
     for fila in ws_resumidas.iter_rows(min_row=2):
         cell_receptor = fila[9] 
-        for i, cell in enumerate(fila):
-            if i != 9:
-                cell.fill = PatternFill(fill_type=None)
         if cell_receptor.value and numero_receptor_filtro and str(cell_receptor.value) != str(numero_receptor_filtro):
             cell_receptor.fill = fill_rojo
-        else:
-            cell_receptor.fill = PatternFill(fill_type=None)
         
         column_indices_to_format = [4, 5, 6, 7, 8, 11] 
         for col_index in column_indices_to_format:
@@ -236,7 +212,19 @@ def extraer_datos_xml_en_memoria(xml_files, numero_receptor_filtro):
     out.seek(0)
     return out
 
-# --- Rutas (Login, Index, Logout, Upload permanecen igual) ---
+# --- RUTAS ACTUALIZADAS ---
+
+@app.route('/')
+def health_check():
+    """Ruta pública para que Render verifique la salud del servidor"""
+    return "Servidor activo", 200
+
+@app.route('/dashboard')
+def index():
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
+    return render_template('index.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -244,17 +232,11 @@ def login():
         if password == CORRECT_PASSWORD:
             session['logged_in'] = True
             flash('Inicio de sesión exitoso.', 'success')
-            return redirect(url_for('index'))
+            return redirect(url_for('index')) # Redirige a /dashboard
         else:
             flash('Contraseña incorrecta. Inténtalo de nuevo.', 'error')
             return redirect(url_for('login'))
     return render_template('login.html')
-
-@app.route('/')
-def index():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    return render_template('index.html')
 
 @app.route('/logout')
 def logout():
@@ -270,17 +252,17 @@ def upload_files():
 
     if 'xml_files' not in request.files:
         flash('No se subieron archivos.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
 
     files = request.files.getlist('xml_files')
     if not files or files[0].filename == '':
         flash('No se seleccionó ningún archivo.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
 
     numero_receptor = request.form.get('numero_receptor')
     if not numero_receptor:
         flash('El número de identificación del receptor es obligatorio.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('dashboard'))
 
     excel_stream = extraer_datos_xml_en_memoria(files, numero_receptor)
 
@@ -292,4 +274,5 @@ def upload_files():
     )
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    # Esto se usa localmente; en Render se usa Gunicorn
+    app.run(debug=False, port=int(os.environ.get("PORT", 10000)), host='0.0.0.0')
